@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Ambient Workspace — original corner light and workspace bars</title>
+  <rect width="128" height="128" rx="27" fill="#101c2d"/>
+  <g fill="#67e8f9"><rect x="22" y="22" width="63" height="12" rx="6"/><rect x="22" y="22" width="12" height="63" rx="6"/></g>
+  <g fill="#a78bfa"><rect x="94" y="43" width="12" height="63" rx="6"/><rect x="43" y="94" width="63" height="12" rx="6"/></g>
+  <g fill="#dce9f9"><rect x="44" y="49" width="9" height="29" rx="4"/><rect x="60" y="41" width="9" height="45" rx="4"/><rect x="76" y="55" width="9" height="17" rx="4"/></g>
+</svg>

@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ambient Workspace</title>
+  <link rel="stylesheet" href="popup.css">
+  <script src="popup.js" defer></script>
+</head>
+<body>
+  <main class="app">
+    <header class="top"><span class="brand-logo" aria-hidden="true">AW</span><div class="brand-text"><strong>Ambient Workspace</strong><small>Chrome 확장</small></div><span class="version">UI-2</span></header>
+    <section class="connect" aria-label="YouTube 연결">
+      <div class="connection-title"><h1 id="statusLabel" role="status">연결 상태 확인 중…</h1><div class="connection-actions"><button type="button" id="captureBtn" class="primary" disabled>YouTube 연결</button><button type="button" id="stopBtn" class="danger">취소·해제</button></div></div>
+      <p class="help" id="captureHelp">저장된 상태를 확인하고 있습니다.</p>
+      <p id="errorBox" class="error" role="alert" hidden></p>
+      <details id="connectionDetails"><summary>연결 대상·영상 영역</summary><div class="detail-content">
+        <p class="help" id="sessionSummary"></p>
+        <label class="destination-label" for="targetTab">다음 연결 대상</label>
+        <select id="targetTab" class="destination-select"><option value="all">모든 열린 지원 탭 + Desktop</option><option value="desktop">Desktop만 (웹 탭 없이)</option><option value="youtube">YouTube 조명만</option></select>
+        <p class="setting-note">대상 변경은 다음 연결에 적용됩니다. 지원 웹 탭은 최대 8개까지 연결합니다.</p>
+        <button type="button" id="refreshCrop" class="secondary" disabled>영상 영역 다시 감지</button>
+        <p class="setting-note" id="sourceNote" role="status">YouTube 연결 후 영상 영역을 자동 감지합니다.</p>
+      </div></details>
+    </section>
+    <nav class="tabs" role="tablist" aria-label="팝업 메뉴">
+      <button type="button" id="tab-outputs" role="tab" data-tab="outputs" aria-controls="panel-outputs" aria-selected="true" tabindex="0">연결·출력</button>
+      <button type="button" id="tab-web" role="tab" data-tab="web" aria-controls="panel-web" aria-selected="false" tabindex="-1">웹 배경</button>
+      <button type="button" id="tab-youtube" role="tab" data-tab="youtube" aria-controls="panel-youtube" aria-selected="false" tabindex="-1">YouTube</button>
+      <button type="button" id="tab-pairing" role="tab" data-tab="pairing" aria-controls="panel-pairing" aria-selected="false" tabindex="-1">연결 설정</button>
+    </nav>
+    <p id="settingsError" class="error global-error" role="alert" hidden></p>
+    <fieldset id="settingsControls" disabled>
+      <legend class="sr-only">효과 및 연결 설정</legend>
+      <div class="panels" id="panelScroll">
+        <section id="panel-outputs" role="tabpanel" aria-labelledby="tab-outputs" tabindex="0">
+          <h2>출력할 곳 선택</h2>
+          <div class="output-row"><label for="enabled"><strong>웹 배경 사용</strong><small>지원 사이트의 배경만 조절합니다.</small></label><label class="toggle"><input type="checkbox" id="enabled" aria-label="웹 배경 사용"><span class="switch" aria-hidden="true"></span><span id="toggleText" aria-hidden="true">켜짐</span></label></div>
+          <label class="setting-row"><span><strong>YouTube 조명 사용</strong><small>플레이어 주변 조명만 끕니다. 영상·소리·다른 출력과 연결은 유지됩니다.</small></span><input type="checkbox" id="youtubeAmbientEnabled" class="checkbox" aria-describedby="youtubeAmbientOutputState"></label>
+          <p id="youtubeAmbientOutputState" class="setting-note" role="status"></p>
+          <div class="desktop-controls">      <label class="setting-row"><span><strong>Windows로 전송</strong><small id="desktopSendHelp">OFF이면 RGB와 영상 전송이 모두 중단됩니다.</small></span><input type="checkbox" id="desktopEnabled" class="checkbox" aria-describedby="desktopSendHelp"></label>
+      <label class="setting-row desktop-video-choice"><span><strong>흐릿한 영상도 전송</strong><small id="desktopVideoHelp">RGB 색상에 영상을 추가합니다. 상위 OFF여도 선택은 저장됩니다.</small></span><input type="checkbox" id="desktopVideoEnabled" class="checkbox" aria-describedby="desktopVideoHelp"></label>
+      <p class="setting-note" id="desktopStatus" aria-live="polite">Chrome 송신: 페어링을 설정해 주세요.</p>
+      <p class="setting-note desktop-display-state" id="desktopDisplayStatus">Desktop 표시: 현재 Chrome에서는 확인할 수 없습니다. Windows 트레이에서 RGB·영상 사용과 표시 상태를 확인하세요.</p>
+      <div class="desktop-pause-controls">
+        <button type="button" id="desktopPause" class="secondary full" disabled>통합 효과 일시정지</button>
+        <p class="setting-note" id="integrationStatus" role="status" aria-live="polite">적용 확인 중…</p>
+        <p class="setting-note" id="desktopControlStatus" role="status" aria-live="polite">Desktop 제어: 상태 확인 중…</p>
+        <p class="setting-note" id="youtubeControlStatus" role="status" aria-live="polite">YouTube 조명 동기화: 적용 확인 중…</p>
+        <p class="setting-note" id="webControlStatus" role="status" aria-live="polite">웹 배경 동기화: 적용 확인 중…</p>
+        <p class="setting-note" id="captureControlStatus" role="status" aria-live="polite">캡처 처리: 확인 중…</p>
+        <button type="button" id="desktopControlRefresh" class="text-button">적용 상태 다시 확인</button>
+        <p class="setting-note">효과와 프레임 처리·송신을 함께 일시정지합니다. 캡처 연결·개별 ON/OFF 설정과 원본 영상 재생·소리는 유지됩니다. YouTube 조명은 Ambient Workspace 효과만 제어합니다.</p>
+      </div>
+
+          <button type="button" id="openPairing" class="text-button">연결 설정에서 페어링</button>
+          </div>
+        </section>
+        <section id="panel-web" role="tabpanel" aria-labelledby="tab-web" tabindex="0" hidden>
+          <h2>웹 배경 표현</h2><p class="setting-note">Windows 표시와 별도로 조절합니다. 사이트별 사용 여부 외 효과 설정은 공통입니다.</p>
+    <section class="modes controls">
+      <div class="section-heading"><h2>유튜브 연결 시 배경</h2></div>
+      <div class="mode-choices" role="group" aria-label="유튜브 배경 표시 방식">
+        <label class="mode-choice"><input type="radio" name="sourceMode" value="video"><span><b>영상 테두리</b><small>중앙 바깥에 영상</small></span></label>
+        <label class="mode-choice"><input type="radio" name="sourceMode" value="glow"><span><b>영상 반사광</b><small>영상 색감만 확산</small></span></label>
+      </div>
+
+    </section>    <section class="controls main-controls">
+      <div class="section-heading"><h2>빠른 설정</h2><span class="tiny-text" id="presetStatus">직접 조절</span></div>
+      <div class="presets" role="group" aria-label="집중 프리셋">
+        <button type="button" data-preset="focus">집중</button>
+        <button type="button" data-preset="balanced">균형</button>
+        <button type="button" data-preset="immersive">몰입</button>
+      </div>
+    </section><details open><summary>성능</summary>
+    <div class="detail-content">
+
+      <div class="power-choices" role="group" aria-label="성능 모드">
+        <button type="button" data-power="eco"><b>절전</b><small>400×225 · 영상 2 FPS</small></button>
+        <button type="button" data-power="balanced"><b>균형</b><small>560×315 · 영상 5 FPS</small></button>
+        <button type="button" data-power="quality"><b>고품질</b><small>960×540 · 영상 10 FPS</small></button>
+      </div>
+      <p class="setting-note" id="powerNote">저사양 보호: 반사광은 RGB 색상만 전달하고, 영상은 낮은 FPS로 공유합니다. 비활성 탭은 프레임 처리를 중단합니다.</p>
+      <p class="setting-note" id="perfNote" aria-live="polite"></p>
+      <label class="setting-row fps-row stacked"><span><strong>웹 영상 FPS 상한</strong><small>성능 모드 상한보다 더 낮게 제한 가능</small></span><select id="fps"><option value="2">2 FPS · 최저</option><option value="5">5 FPS · 기본</option><option value="10">10 FPS · 부드럽게</option></select></label>
+      <p id="desktopFpsNote" class="setting-note"></p>
+    </div>
+</details><details><summary>미연결 그라데이션</summary>
+    <div class="detail-content">
+
+      <p class="setting-note palette-note">원형 빛 여러 개가 은은하게 움직입니다. 연결을 끊으면 이 배경이 나타나요.</p>
+      <div class="palette-choices" role="group" aria-label="배경 색상 팔레트">
+        <button type="button" data-palette="twilight" title="새벽 · 보라/파랑/청록"><i style="--p1:#5269ce;--p2:#913da2;--p3:#21afa1"></i><span>새벽</span></button>
+        <button type="button" data-palette="forest" title="숲 · 초록/이끼/황금"><i style="--p1:#296b63;--p2:#438151;--p3:#b9a451"></i><span>숲</span></button>
+        <button type="button" data-palette="sunset" title="노을 · 주황/분홍/보라"><i style="--p1:#e1974d;--p2:#c95e7b;--p3:#715bc3"></i><span>노을</span></button>
+        <button type="button" data-palette="ocean" title="심해 · 파랑/청록/바다"><i style="--p1:#2064a5;--p2:#26a9be;--p3:#3655a8"></i><span>심해</span></button>
+        <button type="button" data-palette="aurora" title="오로라 · 민트/보라/청색"><i style="--p1:#4c8cdd;--p2:#47bb90;--p3:#9e61d4"></i><span>오로라</span></button>
+      </div>
+      <div class="motion-row"><label for="motion">움직임</label><select id="motion"><option value="vertical">위아래로 흐르기</option><option value="horizontal">좌우로 흐르기</option><option value="drift">천천히 떠다니기</option><option value="none">정지</option></select></div>
+      <div class="control motion-speed"><div class="control-line"><label for="motionSpeed">변화 속도</label><output id="motionSpeedValue">65초 / 왕복 방향</output></div><input type="range" id="motionSpeed" min="30" max="120" step="5"></div>
+      <button type="button" id="demoBtn" class="secondary full">연결 해제 후 웹 그라데이션 사용</button>
+      <p class="setting-note">웹 배경을 켜고 기존 작업 탭으로 이동합니다. 없으면 ChatGPT 탭을 엽니다.</p>
+    </div>
+</details><details><summary>세부 효과·중앙 보호</summary>
+    <div class="detail-content">
+
+      <div class="control"><div class="control-line"><label for="intensity">배경 강도</label><output id="intensityValue">24%</output></div><input type="range" id="intensity" min="0" max="60" step="1"></div>
+      <div class="control"><div class="control-line"><label for="blur">흐림</label><output id="blurValue">18px</output></div><input type="range" id="blur" min="0" max="40" step="1"></div>
+      <div class="control"><div class="control-line"><label for="dim">어둡기</label><output id="dimValue">38%</output></div><input type="range" id="dim" min="0" max="90" step="1"></div>
+      <div class="control"><div class="control-line"><label for="saturation">색감</label><output id="saturationValue">84%</output></div><input type="range" id="saturation" min="0" max="150" step="1"></div>
+      <label class="setting-row"><span><strong>중앙 원형 보호</strong><small>원형 영역 안쪽은 깨끗하게 유지</small></span><input type="checkbox" id="protectCenter" class="checkbox"></label>
+      <div class="control focus-control"><div class="control-line"><label for="focusWidth">원형 보호 · 가로 크기</label><output id="focusWidthValue">54%</output></div><input type="range" id="focusWidth" min="48" max="88" step="2"></div>
+      <div class="control"><div class="control-line"><label for="focusHeight">원형 보호 · 세로 크기</label><output id="focusHeightValue">115%</output></div><input type="range" id="focusHeight" min="85" max="135" step="5"></div>
+
+    </div>
+</details><details><summary>지원 사이트</summary>
+    <div class="detail-content">
+
+      <div id="siteList" class="site-grid" aria-label="지원 사이트">
+        <label class="site-check"><input type="checkbox" data-site="chatgpt"><span>ChatGPT</span></label>
+        <label class="site-check"><input type="checkbox" data-site="claude"><span>Claude</span></label>
+        <label class="site-check"><input type="checkbox" data-site="gemini"><span>Gemini</span></label>
+        <label class="site-check"><input type="checkbox" data-site="notion"><span>Notion</span></label>
+      </div>
+      <p class="setting-note">사이트별 ON/OFF만 따로 저장하고 효과 설정은 공통으로 사용합니다.</p>
+    </div>
+</details>
+          <p class="setting-note">Chrome 웹 배경 전환: <kbd>Alt ⇧ B</kbd></p>
+        </section>
+        <section id="panel-youtube" role="tabpanel" aria-labelledby="tab-youtube" tabindex="0" hidden>
+    <section class="controls youtube-ambient-controls">
+      <div class="section-heading"><h2>YouTube 플레이어 조명</h2></div>
+      <div class="youtube-light-state"><p id="youtubeAmbientStatus" role="status"></p><button type="button" id="youtubeAmbientToggle" aria-pressed="true">조명 끄기</button></div>
+      <p class="setting-note">조명만 종료·재개합니다. 캡처를 끊으려면 상단의 ‘연결 해제’를 누르세요.</p>
+
+      <p id="ytPresetStatus" class="tiny-text">직접 조절</p>
+      <div class="yt-light-presets" role="group" aria-label="유튜브 조명 프리셋">
+        <button type="button" data-yt-light="subtle">은은함</button>
+        <button type="button" data-yt-light="balanced">균형</button>
+        <button type="button" data-yt-light="cinematic">풍부함</button>
+      </div>
+      <div class="control"><div class="control-line"><label for="youtubeAmbientStrength">조명 강도</label><output id="youtubeAmbientStrengthValue">84%</output></div><input type="range" id="youtubeAmbientStrength" min="0" max="100" value="84" step="2"></div>
+      <div class="control"><div class="control-line"><label for="youtubeAmbientSpread">확산 범위</label><output id="youtubeAmbientSpreadValue">440px</output></div><input type="range" id="youtubeAmbientSpread" min="40" max="600" value="440" step="10"></div>
+      <div class="control"><div class="control-line"><label for="youtubeAmbientBlur">흐림</label><output id="youtubeAmbientBlurValue">118px</output></div><input type="range" id="youtubeAmbientBlur" min="12" max="180" value="118" step="2"></div>
+      <p class="setting-note yt-setting-help">강도는 밝기, 확산은 주변 범위, 흐림은 경계의 부드러움을 조절합니다. 조명을 꺼도 설정은 유지됩니다.</p>
+      <label class="setting-row stacked"><span><strong>조명 갱신 속도</strong><small>절전 1 FPS · 기본 2 FPS</small></span><select id="youtubeAmbientFps" class="destination-select fps-small"><option value="1">1 FPS · 절전</option><option value="2">2 FPS · 기본</option><option value="4">4 FPS · 부드럽게</option></select></label>
+      <p class="setting-note">영상 캡처는 YouTube 탭에서 <b>YouTube 연결</b>을 눌러 시작해요. 전체화면·숨김 탭에서는 조명을 숨깁니다.</p>
+    </section>
+        </section>
+        <section id="panel-pairing" role="tabpanel" aria-labelledby="tab-pairing" tabindex="0" hidden>
+    <section class="controls desktop-controls">
+      <div class="section-heading"><h2>Windows 연결</h2><span class="tiny-text"><span id="pairState">확인 중</span></span></div>
+      <p class="setting-note">처음에는 Desktop 설정 → 연결 → <b>Chrome 연결 등록</b>에서 아래 ID를 등록하세요. 폴더를 이동했다면 새 위치로 재등록합니다.</p>
+      <label for="nativeExtensionId" class="setting-note">등록용 확장 ID · 공개 값</label>
+      <input id="nativeExtensionId" type="text" readonly spellcheck="false" aria-label="Chrome 연결 등록용 확장 ID">
+      <div class="mini-actions"><button type="button" class="secondary" id="nativeCopyId">등록용 ID 복사</button><button type="button" class="secondary" id="nativeCheck">Host 연결 확인</button></div>
+      <p id="nativeStatus" class="setting-note" role="status">등록 후 Host 연결을 확인하세요. 아래 페어링 코드는 별도입니다.</p>
+      <details><summary>기존 확장 설정 가져오기·백업</summary><div class="detail-content">
+        <p class="setting-note">예전 확장 ID의 설정은 Desktop 연결 등록 창의 ‘이전 확장 설정 준비’로 먼저 복사하세요. 새 확장에서 캡처를 끄고 백업 목록을 읽은 뒤 선택해 복원합니다. 원본 Chrome 데이터는 보존됩니다.</p>
+        <div class="mini-actions"><button type="button" class="secondary" id="nativeBackupList">백업 목록 읽기</button><button type="button" class="secondary" id="nativeBackupExport">현재 설정 백업</button></div>
+        <label for="nativeBackupSelect" class="setting-note">개인 폴더의 설정 백업</label><select id="nativeBackupSelect" aria-label="가져올 확장 설정 백업"></select>
+        <label class="setting-note"><input type="checkbox" id="nativeBackupConfirm"> 선택한 설정으로 같은 항목을 바꿉니다. 현재 설정은 먼저 백업합니다.</label>
+        <button type="button" class="secondary" id="nativeBackupImport">선택한 설정 복원</button>
+        <p id="nativeBackupStatus" class="setting-note" role="status">자동으로 복원하지 않습니다. 기존 Desktop 설정·키는 바꾸지 않습니다.</p>
+      </div></details>
+      <p class="setting-note">Desktop 설정의 연결 탭에서 페어링 코드를 복사해 아래에 붙여넣으세요. 기존 코드를 그대로 사용합니다.</p>
+      <label class="destination-label" for="desktopCode">데스크톱 페어링 코드</label>
+      <input type="password" id="desktopCode" class="desktop-input" autocomplete="off" spellcheck="false" maxlength="64" placeholder="64자리 코드 붙여넣기" aria-describedby="pairError">
+      <p class="setting-note">연결 검사에 성공하면 Windows 전송도 켜집니다.</p><div class="mini-actions">
+        <button type="button" class="secondary" id="desktopPair">코드 저장 · 연결 검사</button>
+        <button type="button" class="secondary" id="desktopPing">다시 검사</button>
+      </div>
+
+      <p id="pairError" class="error" role="alert" hidden></p>
+      <p id="pairStatus" class="setting-note" role="status"></p>
+      <button type="button" id="desktopForget" class="danger">페어링 해제</button>
+      <p class="setting-note">Chrome에 저장한 페어링만 해제합니다. Desktop 코드는 재발급하지 않으며, 영상 추가 선택은 보존됩니다.</p>
+    </section>
+        </section>
+      </div>
+    </fieldset>
+    <footer><span id="saveStatus" role="status">설정을 불러오는 중…</span><span>Windows 표시는 트레이에서 확인</span></footer>
+  </main>
+</body>
+</html>

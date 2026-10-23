@@ -1,0 +1,88 @@
+{
+  "manifest_version": 3,
+  "name": "Ambient Workspace",
+  "version": "1.0.0",
+  "version_name": "1.0.0-rc.1",
+  "description": "Shared capture for YouTube, web ambient backgrounds, and desktop RGB and adjustable blurred video coverage",
+  "minimum_chrome_version": "116",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "tabCapture",
+    "storage",
+    "alarms",
+    "scripting",
+    "offscreen",
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "https://chatgpt.com/*",
+    "https://chat.openai.com/*",
+    "https://claude.ai/*",
+    "https://gemini.google.com/*",
+    "https://www.notion.so/*",
+    "https://notion.so/*",
+    "https://www.notion.com/*",
+    "https://notion.com/*",
+    "https://www.youtube.com/*",
+    "https://youtube.com/*",
+    "https://app.notion.com/*",
+    "https://app.notion.so/*"
+  ],
+  "background": {
+    "service_worker": "source/background.js"
+  },
+  "action": {
+    "default_title": "Ambient Workspace",
+    "default_popup": "source/popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*",
+        "https://claude.ai/*",
+        "https://gemini.google.com/*",
+        "https://www.notion.so/*",
+        "https://notion.so/*",
+        "https://www.notion.com/*",
+        "https://notion.com/*",
+        "https://app.notion.com/*",
+        "https://app.notion.so/*"
+      ],
+      "js": [
+        "source/content.js"
+      ],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": [
+        "https://www.youtube.com/*",
+        "https://youtube.com/*"
+      ],
+      "js": [
+        "source/youtube.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "commands": {
+    "toggle-ambient": {
+      "suggested_key": {
+        "default": "Alt+Shift+B"
+      },
+      "description": "Toggle ambient background"
+    }
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmpyHq6h5VThWMYTyJIuYDYlWd1TY7WInoPJKm9IslfQKvfgSaGj1Nj0txEgvgXVBkLb5RLi0vxtasC49ospDA6d1xh18XkxPW2CU9IPWAPtmnnRsbeS17+aqfET+I1AqQzuxjV7d5zrA+kXb4m7u6muTfv1tsYEdbJb+jVnhtvZ8uPzLblQs4MfmNBh0D8B1OeTIQiasslL4Mdp91CYHXe3BhCyssm4uqVhtODh06YrUq1vf+TmruxZ84w/0o0hUymO8NJdKEM77RmErZcpzxu7g4naVDxMRhsoKK8iBgRhkEETfhD4rsonyeZzt4cf5dMw8Mij9VpQMOQ0ENbjCTwIDAQAB"
+}

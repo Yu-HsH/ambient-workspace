@@ -1,0 +1,52 @@
+{
+  "version": "1.0.0-rc.1",
+  "schemaVersion": 1,
+  "control": {
+    "globalPaused": false
+  },
+  "globalHotkey": {
+    "enabled": false,
+    "combination": "Ctrl+Alt+Shift+P"
+  },
+  "desktopOutput": {
+    "enabled": true,
+    "rgbEnabled": true,
+    "videoEnabled": true,
+    "intensity": "balanced"
+  },
+  "targets": [
+    "Code",
+    "Code - Insiders",
+    "Codex",
+    "ChatGPT",
+    "Claude",
+    "Cursor"
+  ],
+  "palette": "dawn",
+  "strength": 0.36,
+  "appMultipliers": {
+    "code": 1.0,
+    "code - insiders": 1.0,
+    "cursor": 1.0,
+    "codex": 1.22,
+    "claude": 1.11,
+    "chatgpt": 1.11
+  },
+  "spread": "wide",
+  "centerProtection": "balanced",
+  "motion": false,
+  "animationSeconds": 75,
+  "windowCheckMilliseconds": 850,
+  "debugBorder": false,
+  "youtubeBridge": {
+    "port": 38941,
+    "enabled": true,
+    "staleSeconds": 7,
+    "blend": 0.35
+  },
+  "desktopVideo": {
+    "coverage": "follow",
+    "smooth": true,
+    "transitionStyle": "brief"
+  }
+}

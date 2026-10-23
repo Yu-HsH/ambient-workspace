@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "purpose": "Stable unpacked development ID; public key is not a code signature or server secret",
+  "publicKey": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAmpyHq6h5VThWMYTyJIuYDYlWd1TY7WInoPJKm9IslfQKvfgSaGj1Nj0txEgvgXVBkLb5RLi0vxtasC49ospDA6d1xh18XkxPW2CU9IPWAPtmnnRsbeS17+aqfET+I1AqQzuxjV7d5zrA+kXb4m7u6muTfv1tsYEdbJb+jVnhtvZ8uPzLblQs4MfmNBh0D8B1OeTIQiasslL4Mdp91CYHXe3BhCyssm4uqVhtODh06YrUq1vf+TmruxZ84w/0o0hUymO8NJdKEM77RmErZcpzxu7g4naVDxMRhsoKK8iBgRhkEETfhD4rsonyeZzt4cf5dMw8Mij9VpQMOQ0ENbjCTwIDAQAB",
+  "extensionId": "ncbcjbbidoaallpikijfbjdmijjljhoe"
+}
