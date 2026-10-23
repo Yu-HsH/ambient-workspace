@@ -6,7 +6,7 @@
 
 ## 1. 압축 풀고 Desktop 실행하기
 
-배포 위치는 [공식 GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)입니다. 현재 RC는 로컬 게시 준비 단계이며 아직 push·태그·Release를 게시하지 않았습니다. 게시 후 Assets의 전체 `AmbientWorkspace-1.0.0-rc.1-windows.zip`을 사용합니다. GitHub의 자동 Source code ZIP과 구분하고 [README의 SHA-256 확인 방법](../README.md)을 따르세요.
+배포 위치는 [공식 GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)의 `v1.0.0-rc.1` Pre-release입니다. Assets의 전체 `AmbientWorkspace-1.0.0-rc.1-windows.zip`과 `.zip.sha256`·`.zip.manifest.json`을 받으세요. GitHub의 자동 Source code ZIP과 구분하고 [README의 SHA-256 확인 방법](../README.md)을 따릅니다.
 
 1. 승인된 배포 경로에서 받은 ZIP **전체를 압축 해제**합니다. ZIP 안에서 바로 실행하지 마세요. 신뢰한 배포 경로의 SHA-256과 파일 동일성을 확인하세요. 해시 일치는 배포자 서명 검증이 아닙니다.
 2. 본인만 사용하는 **로컬 NTFS 개인 폴더**를 선택하세요. 예시는 `%USERPROFILE%\AmbientWorkspace`입니다. 사용자 폴더 아래라는 이유만으로 안전하다고 가정하지 않습니다. 실제 파일·상속 권한 검사를 통과해야 합니다. `Desktop_Companion`과 `Browser_Extension`을 함께 보관하세요.

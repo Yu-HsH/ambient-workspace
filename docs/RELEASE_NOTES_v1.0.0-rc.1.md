@@ -40,7 +40,7 @@ SA-01 비원자적 이동 경합·이미 보낸 데이터 회수 불가, 과거 
 
 ## 설치·업데이트·제거
 
-게시 위치는 [공식 GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)입니다. 현재는 로컬 게시 준비 단계로 push·태그·Release 게시를 하지 않았습니다. 게시 후 Assets의 전체 `AmbientWorkspace-1.0.0-rc.1-windows.zip`과 SHA-256 확인 파일을 사용합니다. [README](../README.md)에 다운로드·파일 확인·초기 연결 순서를 정리했습니다.
+배포 위치는 [공식 GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)의 `v1.0.0-rc.1` Pre-release입니다. Assets의 전체 `AmbientWorkspace-1.0.0-rc.1-windows.zip`과 `.zip.sha256`·`.zip.manifest.json`을 사용합니다. [README](../README.md)의 Quick Start에 다운로드·파일 확인·초기 연결 순서를 정리했습니다.
 
 [Windows 설치 안내](WINDOWS_PORTABLE_GUIDE.md)와 [Native 등록/보존/복구](NATIVE_MESSAGING_GUIDE.md)를 따릅니다. 기존 설정·키는 첫 실행 전에 안전하게 복사하고 실제 ACL을 재검사합니다. 원본·백업을 보존하며 자동 초기화/재페어링/권한 수정을 하지 않습니다.
 

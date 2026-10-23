@@ -1,10 +1,22 @@
 # Ambient Workspace 1.0.0-rc.1
 
+[**Windows RC 다운로드 · GitHub Releases**](https://github.com/Yu-HsH/ambient-workspace/releases) · [설치 안내](docs/WINDOWS_PORTABLE_GUIDE.md) · [알려진 문제](docs/KNOWN_ISSUES.md)
+
 YouTube 영상의 색과 흐릿한 영상을 작업 공간의 배경과 조명으로 연결하는 무료 앱입니다. Chrome에서는 웹 작업 화면과 YouTube 플레이어 주변에, Windows에서는 Desktop Companion이 대상 앱 주변에 효과를 표시합니다. 원본 영상과 오디오는 그대로 재생됩니다.
 
 YouTube를 연결하지 않아도 그라데이션 배경(Demo)을 사용할 수 있고, 직접 연결하면 영상 기반 배경(Live)으로 바꿀 수 있습니다. 색상 조명과 흐릿한 영상은 각각 선택하며, 통합 Pause/Resume로 효과를 함께 멈추고 재개합니다.
 
 **공개 테스트용 Release Candidate(RC)이며 정식 1.0.0이 아닙니다.** 수동 설치형이며, 지원 범위는 **본인 전용 Windows 계정과 ACL 검사를 통과한 로컬 NTFS 설치**입니다. 설치 전에 [개인정보 안내](docs/PRIVACY.md), [알려진 문제](docs/KNOWN_ISSUES.md)와 아래 지원 환경을 확인하세요.
+
+## Quick Start
+
+1. [GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)의 `v1.0.0-rc.1` **Pre-release → Assets**에서 Windows ZIP과 `.sha256`을 받고 해시를 확인합니다. ZIP 전체를 개인 로컬 NTFS 폴더에 풀고 두 제품 폴더를 함께 유지합니다.
+2. 기존 사용자는 **첫 실행 전에** [설정·키 보존 절차](docs/NATIVE_MESSAGING_GUIDE.md)를 따릅니다. [설치 안내의 읽기 전용 ACL 검사](docs/WINDOWS_PORTABLE_GUIDE.md)에서 `PASS`를 확인합니다.
+3. `Desktop_Companion/Start.bat`을 실행하고 Chrome `chrome://extensions`에서 개발자 모드로 `Browser_Extension`을 로드합니다.
+4. Desktop 설정 → **연결 → Chrome 연결 등록**에서 확장 ID를 등록하고, 팝업에 페어링 코드를 저장해 **코드 저장 · 연결 검사**를 완료합니다. [등록·복구 안내](docs/NATIVE_MESSAGING_GUIDE.md)를 확인하세요.
+5. YouTube에서 영상 로딩을 마친 뒤 팝업의 **YouTube 연결**을 누릅니다. Windows 출력은 **Windows로 전송**과 필요한 영상 옵션을 켜고 실제 Desktop 출력을 확인합니다.
+
+Chrome 재시작 후 웹만 연결되면 [Native 준비 지연 복구 절차](docs/NATIVE_MESSAGING_GUIDE.md)를 따릅니다. 키·설정은 보존하고 명시적으로 연결을 해제한 뒤 다시 연결합니다. 보안 경고·정책 차단은 우회하지 않습니다.
 
 ## 1. 프로젝트 소개와 핵심 기능
 
@@ -102,9 +114,9 @@ SECURITY 오류를 관리자 실행·공유 권한 추가·보안 기능 해제�
 
 ## 8. 다운로드 및 Release 안내
 
-공식 저장소는 [Yu-HsH/ambient-workspace](https://github.com/Yu-HsH/ambient-workspace)이며, 다운로드 게시 위치는 [GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)입니다. **현재 RC는 로컬 게시 준비 단계로, push·태그·Release 게시는 아직 하지 않았습니다.** Release가 없다면 배포 ZIP도 아직 게시되지 않은 상태입니다.
+공식 저장소는 [Yu-HsH/ambient-workspace](https://github.com/Yu-HsH/ambient-workspace)이며, 다운로드 위치는 [GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)입니다. `v1.0.0-rc.1`은 **Pre-release**로 제공하는 공개 테스트 후보입니다. 버전별 Release Notes와 Known Issues를 먼저 확인하세요.
 
-게시 후에는 해당 RC의 Assets에서 전체 `AmbientWorkspace-1.0.0-rc.1-windows.zip`과 SHA-256 확인 파일을 받으세요. GitHub의 자동 **Source code (zip)**은 별도의 소스 스냅샷입니다. 설치 안내는 배포용 Windows ZIP을 기준으로 합니다.
+해당 RC의 Assets에서 전체 `AmbientWorkspace-1.0.0-rc.1-windows.zip`, 같은 이름의 `.zip.sha256`, `.zip.manifest.json`을 받으세요. GitHub의 자동 **Source code (zip)**은 별도의 소스 스냅샷입니다. 설치 안내는 배포용 Windows ZIP을 기준으로 합니다.
 
 파일 확인은 다운로드 폴더에서 다음 명령으로 수행하고, 결과를 같은 Release의 SHA-256과 비교합니다. 해시 일치는 배포자 전자서명 검증을 대신하지 않습니다.
 
