@@ -9,6 +9,7 @@
 - Chrome Native Messaging: 사용자별 최초 등록·이동 후 재등록·복구·제거, 고정 확장 ID, 기존 설정의 사용자 주도 복사본 이전. HTTP 송신/리스너/fallback 제거.
 - JPEG 인코딩을 내장 Worker로 분리. 기존 크기/화질·FPS 상한·단일 pending·기한·pause/source epoch 유지.
 - 새 도형 아이콘과 MIT 라이선스, 별도 upstream MIT 고지.
+- Native 준비 확인 실패로 웹만 연결된 세션은 팝업을 다시 열어도 Windows 송신 중단과 연결 해제·재연결 안내를 표시. Native 지연/공유 요청 취소 자체는 RC 잔여 위험으로 유지.
 - 2026-10-23 사용자 수락과 기존 자동52/52를 기록. 개인 Windows 계정·ACL PASS 로컬 NTFS로 지원 제한. 실제 두 계정 실험은 미수행이며 이번 RC 필수 조건에서 제외.
 
 간헐 시작/팝업 실패 원인은 미확정이며 기본2FPS·실험5/10FPS·SA-01 비원자적 경합 등의 [Known Issues](docs/KNOWN_ISSUES.md)를 유지합니다. [Release Notes](docs/RELEASE_NOTES_v1.0.0-rc.1.md)를 확인하세요.

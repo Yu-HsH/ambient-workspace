@@ -348,8 +348,9 @@ async function loadStatus() {
   desktopView={paired:Boolean(desktop?.paired),enabled:Boolean(desktop?.enabled),videoEnabled:Boolean(videoPreference.desktopVideoEnabled)};
   renderDesktopControls();
   const bridge=desktop?.runtime;
-  $('desktopStatus').textContent=desktopPending?'Chrome 송신: 설정 변경 중…':!desktop?.paired?'Chrome 송신: 페어링 필요 · 먼저 코드를 저장해 주세요.':!desktop.enabled?'Chrome 송신: 꺼짐 · RGB와 영상 모두 중단':!session?'Chrome 송신: YouTube 연결 대기':bridge?.online?`Chrome 송신: Bridge 응답 확인 · 누적 색상 ${bridge.packets}회 / 영상 ${bridge.videoFrames||0}프레임 · 영상 추가 전송 ${desktopView.videoEnabled?'허용':'꺼짐'}${bridge.experimentalFps?` · 실험 ${bridge.experimentalFps}FPS`:''}`:(bridge?.error?`Chrome 송신: 연결 재시도 중 · ${bridge.error}`:'Chrome 송신: 캡처 연결됨 · Bridge 응답 대기');
-  $('captureHelp').textContent=session?'대상 변경은 연결 해제 후 다시 연결하세요.'
+  const desktopReconnectRequired=Boolean(session&&desktop?.paired&&desktop.enabled&&bridge?.enabled===false);
+  $('desktopStatus').textContent=desktopPending?'Chrome 송신: 설정 변경 중…':!desktop?.paired?'Chrome 송신: 페어링 필요 · 먼저 코드를 저장해 주세요.':!desktop.enabled?'Chrome 송신: 꺼짐 · RGB와 영상 모두 중단':!session?'Chrome 송신: YouTube 연결 대기':desktopReconnectRequired?'Chrome 송신: Windows 전송이 시작되지 않았어요. Desktop 실행 상태를 확인한 뒤 연결 해제 → 다시 연결하세요. 기존 페어링 코드는 유지합니다.':bridge?.online?`Chrome 송신: Bridge 응답 확인 · 누적 색상 ${bridge.packets}회 / 영상 ${bridge.videoFrames||0}프레임 · 영상 추가 전송 ${desktopView.videoEnabled?'허용':'꺼짐'}${bridge.experimentalFps?` · 실험 ${bridge.experimentalFps}FPS`:''}`:(bridge?.error?`Chrome 송신: 연결 재시도 중 · ${bridge.error}`:'Chrome 송신: 캡처 연결됨 · Bridge 응답 대기');
+  $('captureHelp').textContent=desktopReconnectRequired?'웹 캡처는 유지 중이지만 Windows 송신은 중단돼 있어요. 연결 해제 후 다시 연결하세요.':session?'대상 변경은 연결 해제 후 다시 연결하세요.'
     :(isYoutube?'연결하면 웹 배경도 켜집니다.':'이 탭에서는 연결을 시작할 수 없어요. YouTube 탭을 열어 주세요.');
   if(session?.targetTabIds?.length){
     try {const stats=await chrome.tabs.sendMessage(session.targetTabIds[0],{type:'AW_PERF_STATS'});
