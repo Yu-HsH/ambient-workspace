@@ -1,6 +1,6 @@
 # 자주 묻는 질문
 
-**지금 공개 배포해도 되나요?** Native 자동 검증과 소유자 고지를 반영한 로컬 후보이며 실제 사용자 검토·공개 최종 승인 전까지 공개를 보류합니다. [Known Issues](KNOWN_ISSUES.md)를 확인하세요.
+**어디서 다운로드하나요?** [공식 GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)에 게시되는 전체 Windows ZIP을 사용합니다. 현재는 사용자 수락을 반영한 로컬 RC이며 push·태그·Release 게시 전입니다. 공개 최종 승인 후 게시할 예정이므로 Release가 없다면 아직 배포되지 않은 상태입니다. [README의 다운로드·해시 확인 안내](../README.md)와 [Known Issues](KNOWN_ISSUES.md)를 확인하세요.
 
 **관리자 권한·설치 프로그램이 필요한가요?** 압축 해제 후 Start.bat을 실행합니다. Chrome 연결을 위해 사용자별 등록을 한 번 수행합니다. Windows PowerShell 5.1/WPF·기본 .NET 컴파일러를 사용하며 Node/Python·Web Store·새 SDK가 필요하지 않습니다. 폴더를 옮기면 재등록해야 합니다.
 
