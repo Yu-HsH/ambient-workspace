@@ -1,5 +1,11 @@
 # Ambient Workspace 1.0.0-rc.1
 
+개발 브랜치 `feat/rc2-orca-desktop`에는 Windows **Orca** 지원이 추가되어 있습니다. 기존 설정은 초기화하지 않으며 Orca 기본 배율은 1.0입니다. 이 변경은 아직 공개 배포되지 않았습니다. [rc.2 Orca 검증 안내](docs/ORCA_SUPPORT_RC2.md)와 [대상 앱 직접 등록 설계안](docs/WINDOWS_APP_REGISTRATION_DESIGN.md)을 참고하세요. 아래 공개 다운로드는 기존 rc.1입니다.
+
+같은 개발 브랜치에 [안전한 설치 도우미](docs/SAFE_INSTALL_GUIDE.md)를 추가했습니다. 새 앱 전용 폴더 생성·파일 해시/ACL 검증·승인한 설정/키 복사·Native 등록/인증 안내를 제공합니다. **아직 미배포이며 기존 rc.1 ZIP을 새 도우미로 설치할 수는 없습니다.** 공개 설치 안내는 아래 rc.1 절차를 유지합니다.
+
+rc.2 로컬 검토는 [실제 사용자 검증 순서](docs/INSTALLER_USER_GUIDE_RC2.md)와 [설치 도우미 수락 기록](docs/INSTALLER_USER_ACCEPTANCE_RC2.md)을 사용합니다. 패키지 확인부터 새 폴더 설치·승인한 등록·원래 등록 복원까지 안내하며, 기존 Orca 실사용 확인과 별도로 기록합니다.
+
 [**Windows RC 다운로드 · GitHub Releases**](https://github.com/Yu-HsH/ambient-workspace/releases) · [설치 안내](docs/WINDOWS_PORTABLE_GUIDE.md) · [알려진 문제](docs/KNOWN_ISSUES.md)
 
 YouTube 영상의 색과 흐릿한 영상을 작업 공간의 배경과 조명으로 연결하는 무료 앱입니다. Chrome에서는 웹 작업 화면과 YouTube 플레이어 주변에, Windows에서는 Desktop Companion이 대상 앱 주변에 효과를 표시합니다. 원본 영상과 오디오는 그대로 재생됩니다.

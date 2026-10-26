@@ -48,6 +48,24 @@ function ConvertTo-AmbientControlConfig($Config) {
     if ($next.desktopVideo.transitionStyle -cnotin @('instant','brief','cinematic')) { throw 'Invalid desktopVideo.transitionStyle' }
     # Matches the existing loader: an explicit transitionStyle takes precedence over smooth.
     $next.desktopVideo.smooth = ($next.desktopVideo.transitionStyle -ne 'instant')
+    # rc.2 target additions are independent of the settings schema/product version.
+    # Normalize the copy in memory; loading never writes settings or pairing files.
+    # Once saved, this marker also preserves an intentional later removal of Orca.
+    Add-AmbientControlDefault $next 'targetDefaultsVersion' 0
+    if ($next.targetDefaultsVersion -isnot [int] -and $next.targetDefaultsVersion -isnot [long]) {
+        throw 'Invalid targetDefaultsVersion; the settings file was not changed.'
+    }
+    if ($next.targetDefaultsVersion -lt 0) { throw 'Invalid targetDefaultsVersion.' }
+    if ($next.targetDefaultsVersion -lt 1) {
+        Add-AmbientControlDefault $next 'targets' @()
+        if (@($next.targets) -notcontains 'orca') { $next.targets = @($next.targets) + @('orca') }
+        Add-AmbientControlDefault $next 'appMultipliers' ([pscustomobject]@{})
+        if ($null -eq $next.appMultipliers -or $next.appMultipliers -isnot [pscustomobject]) {
+            throw 'Invalid settings object: appMultipliers'
+        }
+        Add-AmbientControlDefault $next.appMultipliers 'orca' 1.0
+        $next.targetDefaultsVersion = 1
+    }
     return $next
 }
 

@@ -1,6 +1,7 @@
 {
   "version": "1.0.0-rc.1",
   "schemaVersion": 1,
+  "targetDefaultsVersion": 1,
   "control": {
     "globalPaused": false
   },
@@ -20,7 +21,8 @@
     "Codex",
     "ChatGPT",
     "Claude",
-    "Cursor"
+    "Cursor",
+    "orca"
   ],
   "palette": "dawn",
   "strength": 0.36,
@@ -30,7 +32,8 @@
     "cursor": 1.0,
     "codex": 1.22,
     "claude": 1.11,
-    "chatgpt": 1.11
+    "chatgpt": 1.11,
+    "orca": 1.0
   },
   "spread": "wide",
   "centerProtection": "balanced",
