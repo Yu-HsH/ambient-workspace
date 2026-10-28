@@ -1,5 +1,7 @@
 # rc.2 Windows 연결·Chrome 일시정지 검토
 
+> 현재 다운로드: [rc.2 공개 검토판](https://github.com/Yu-HsH/ambient-workspace/releases/tag/v1.0.0-rc.2-review.1). 아래 미커밋·미배포 및 로컬 전용 표시는 각 기록을 작성했던 시점의 상태입니다. 실제 Windows/Chrome 사용자 수락은 별도이며 과거 자동 검증과 합산하지 않습니다.
+
 2026-10-26, 개발 브랜치 `feat/rc2-connection-pause`. 이 문서의 새 기능은 **미커밋·미배포 검토 대상**입니다.
 
 ## 1단계 보존 지점

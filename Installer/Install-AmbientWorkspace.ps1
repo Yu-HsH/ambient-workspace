@@ -235,7 +235,7 @@ function Install-AmbientWorkspace([string]$PackagePath,[string]$ExpectedSha256,[
     if($ExistingInstall -and -not $ApproveMigration){Stop-AmbientInstall 'INSTALL_MIGRATION_APPROVAL_REQUIRED'}
     Write-Host '파일 무결성 확인 중…'
     $package=Open-AmbientInstallPackage $PackagePath $ExpectedSha256
-    if($package.manifest.reviewOnly){Write-Host '개발 검토용 패키지입니다. 공개 배포물로 승인된 것이 아닙니다.'}
+    if($package.manifest.reviewOnly){Write-Host '검토용 테스트 패키지입니다. 정식 버전이 아니며 실제 환경의 동작 검증이 진행 중입니다.'}
     Initialize-InstallPolicy $package
     Assert-InstallHelper $package
     $package=Select-InstallModePackage $package $InstallMode
@@ -459,7 +459,7 @@ function New-AmbientInstallWizard([string]$ExtractedRoot) {
   <Grid Margin="28">
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <StackPanel Grid.Row="0">
-      <TextBlock Text="AMBIENT WORKSPACE / RC.2 LOCAL REVIEW" Foreground="#91B6F8" FontSize="12"/>
+      <TextBlock Text="AMBIENT WORKSPACE / RC.2 REVIEW" Foreground="#91B6F8" FontSize="12"/>
       <TextBlock x:Name="Heading" Text="설치 시작" FontSize="28" FontWeight="SemiBold"/>
       <TextBlock x:Name="StepLabel" Text="1 설치 시작  →  2 Chrome 확장 설치  →  3 Windows 연결  →  4 설치 완료" Foreground="#B9C9DF"/>
     </StackPanel>

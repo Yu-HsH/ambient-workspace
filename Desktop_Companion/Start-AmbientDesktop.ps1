@@ -779,7 +779,7 @@ $videoPoll.Add_Tick($videoTick)
 
 $tray = New-Object System.Windows.Forms.NotifyIcon
 $tray.Icon = [System.Drawing.SystemIcons]::Application
-$tray.Text = 'Ambient Workspace Desktop v1.0.0-rc.2-dev'
+$tray.Text = 'Ambient Workspace Desktop v1.0.0-rc.2-review.1'
 $tray.Visible = $true
 $tray.add_DoubleClick({ Show-SettingsWindow }.GetNewClosure())
 $menu = New-Object System.Windows.Forms.ContextMenuStrip

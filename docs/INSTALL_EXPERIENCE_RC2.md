@@ -1,5 +1,7 @@
 # 설치 경험 개편 — 분석·신뢰 경계·검토 기록
 
+> 현재 다운로드: [rc.2 공개 검토판](https://github.com/Yu-HsH/ambient-workspace/releases/tag/v1.0.0-rc.2-review.1). 아래 미커밋·미배포 및 로컬 전용 표시는 각 기록을 작성했던 시점의 상태입니다. 실제 Windows/Chrome 사용자 수락은 별도이며 과거 자동 검증과 합산하지 않습니다.
+
 2026-10-28 / `feat/rc2-connection-pause` / **로컬 개발 검토, 미배포**.
 기준 커밋 `3d4c018e9a4182f2b3d6c13781f95e8a84378735`의 Orca·안전 설치를 유지하고 작업 시작 당시 미커밋 Windows 연결·Chrome Pause 위에 설치 UX를 추가합니다. 커밋·push·merge·tag·GitHub Release·기존 설치 수정은 하지 않습니다.
 

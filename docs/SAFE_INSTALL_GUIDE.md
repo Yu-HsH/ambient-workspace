@@ -2,7 +2,7 @@
 
 일반 사용자의 현재 rc.2 흐름은 [화면으로 따라 하는 안내](GETTING_STARTED.md)를 사용합니다. 이 문서는 고급 설치·보안 경계·자동화 참고입니다. 기존 [콘솔 수락 안내](INSTALLER_USER_GUIDE_RC2.md)와 [당시 수락 기록](INSTALLER_USER_ACCEPTANCE_RC2.md)은 과거 결과로 보존합니다. 기존 Orca 확인과 새 설치 시험은 합산하지 않습니다.
 
-설치 엔진 기반은 `3d4c018e`에 보존돼 있고 새 WPF 설치 UX는 미커밋·미배포 개발 변경입니다. 현재 공개 `v1.0.0-rc.1` 배포 ZIP은 `INSTALL-MANIFEST.json`이 없으므로 이 도우미의 입력으로 지원하지 않습니다. 이번 작업은 공개 Release나 기존 운영 설치를 갱신하지 않습니다.
+설치 엔진 기반은 `3d4c018e`, 새 WPF 설치 UX는 `af4c300`에 보존돼 있습니다. [rc.2 공개 검토판](https://github.com/Yu-HsH/ambient-workspace/releases/tag/v1.0.0-rc.2-review.1)은 사용자 승인 후 공개한 테스트 패키지이며 정식판이 아닙니다. 이전 `v1.0.0-rc.1` ZIP은 `INSTALL-MANIFEST.json`이 없어 새 도우미의 입력으로 지원하지 않습니다. 기존 운영 설치는 자동으로 갱신하지 않습니다.
 
 ## 처음 사용하기
 

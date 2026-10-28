@@ -1,12 +1,12 @@
-# 처음 시작하기 — rc.2 로컬 검토본
+# 처음 시작하기 — rc.2 공개 검토판
 
 이 안내는 **새 마법사가 들어 있는 rc.2 ZIP**의 화면을 기준으로 합니다. 공개 rc.1은 [기존 수동 설치 안내](WINDOWS_PORTABLE_GUIDE.md)를 사용하세요. 아래 이미지는 현재 설치 코드의 실제 WPF UI를 **합성 경로로 렌더링**한 것으로, 실제 Chrome 설치·인증 성공 증거가 아닙니다.
 
 ## 준비: 어떤 파일을 받나요?
 
-[공식 GitHub Releases](https://github.com/Yu-HsH/ambient-workspace/releases)의 **Assets**에서 버전이 적힌 `AmbientWorkspace-…-windows.zip` **한 개**를 받습니다. `Source code (zip)`을 받지 마세요. 현재 공개본은 rc.1이고 새 rc.2 ZIP은 로컬 검토용입니다. 로컬 검토 ZIP의 이름·SHA-256은 검토 결과에 별도 제공합니다.
+[**Windows 설치 ZIP 바로 다운로드**](https://github.com/Yu-HsH/ambient-workspace/releases/download/v1.0.0-rc.2-review.1/AmbientWorkspace-1.0.0-rc.2-review.1-windows.zip)를 누르세요. **`AmbientWorkspace-1.0.0-rc.2-review.1-windows.zip` 한 개**를 받으면 됩니다. `Source code (zip)`을 받지 마세요. 이 버전은 실제 환경 검증을 위한 공개 Pre-release이며 정식판이 아닙니다. 이전 rc.1은 새 마법사가 없는 수동 설치판입니다.
 
-공식 Release 본문의 SHA-256을 복사할 수 있도록 페이지를 열어 두세요. 같은 ZIP 안의 manifest나 동봉 체크섬은 다운로드 출처나 배포자 서명을 인증하지 않습니다. 출처를 확인하지 못했거나 Windows가 실행을 차단하면 [문제 해결](TROUBLESHOOTING.md)을 먼저 읽습니다. 보안 설정 변경·관리자 실행·차단 해제 명령을 설치 단계로 요구하지 않습니다.
+[이 버전의 설치 확인값(SHA-256)](https://github.com/Yu-HsH/ambient-workspace/releases/tag/v1.0.0-rc.2-review.1)을 복사할 수 있도록 페이지를 열어 두세요. 같은 ZIP 안의 manifest나 동봉 체크섬은 다운로드 출처나 배포자 서명을 인증하지 않습니다. 출처를 확인하지 못했거나 Windows가 실행을 차단하면 [문제 해결](TROUBLESHOOTING.md)을 먼저 읽습니다. 보안 설정 변경·관리자 실행·차단 해제 명령을 설치 단계로 요구하지 않습니다.
 
 ZIP을 오른쪽 클릭 → **모두 압축 풀기** → 풀린 폴더의 **`Install.bat`**을 두 번 클릭합니다. **원본 ZIP도 보관**하세요. ZIP 안에서 파일 하나만 실행하면 설치할 수 없습니다.
 
