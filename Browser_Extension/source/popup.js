@@ -106,7 +106,7 @@ function initTabs() {
       event.preventDefault();selectTab(tabs[next].dataset.tab,true);
     });
   });
-  $('openPairing').addEventListener('click',()=>{selectTab('pairing');$('desktopCode').focus();});
+  $('openPairing').addEventListener('click',()=>{selectTab('pairing');$('windowsConnect').focus();});
 }
 function setPairError(message='') {
   $('pairError').hidden=!message;$('pairError').textContent=message;
@@ -227,6 +227,27 @@ function updateSourceNote(override) {
 }
 // Separate from capture/status polling: a missing capture or send OFF cannot block control.
 let desktopControlView=null,desktopControlBusy=false,desktopControlSequence=0;
+let chromePauseView=null,chromePauseBusy=false,chromePauseSequence=0;
+function renderChromePause(web){
+  chromePauseView=web;
+  $('webPause').disabled=chromePauseBusy||!web?.ready;
+  $('webPause').textContent=web?.paused?'Chrome 효과 재개':'Chrome 효과 일시정지';
+  $('webPause').setAttribute('aria-pressed',String(web?.paused===true));
+  $('chromePauseStatus').textContent=web?.ready?`Chrome 효과 ${web.paused?'일시정지':'재개'} · 저장 상태 확인됨${web.unconfirmedCount?' · 일부 웹 탭 적용 확인 대기':''}`:'Chrome 상태 미확인 · 다시 확인해 주세요.';
+}
+async function refreshChromePause(){
+  if(chromePauseBusy)return;
+  const sequence=++chromePauseSequence;
+  try{const reply=await send({type:'AW_WEB_PAUSE_QUERY'});if(sequence===chromePauseSequence)renderChromePause(reply.web);}
+  catch{if(sequence===chromePauseSequence)renderChromePause({...chromePauseView,ready:false});}
+}
+async function changeChromePause(){
+  const web=chromePauseView;if(chromePauseBusy||!web?.ready)return;
+  chromePauseBusy=true;chromePauseSequence++;renderChromePause(web);
+  try{const reply=await send({type:'AW_WEB_PAUSE_SET',paused:!web.paused,instanceId:web.instanceId,revision:web.revision});renderChromePause(reply.web);}
+  catch(error){setSettingsError(error.message);}
+  finally{chromePauseBusy=false;await refreshChromePause();}
+}
 const desktopControlMessages={
   nativeUnavailable:'Chrome 연결 등록·현재 폴더 권한을 확인해 주세요.',bridgeUnavailable:'Desktop 수신기가 없습니다. Windows 앱을 확인해 주세요.',pairingRequired:'기존 Desktop 페어링 코드를 먼저 저장해 주세요.',pairingRejected:'페어링 인증 실패 · 코드를 다시 확인해 주세요.',
   unsupported:'이 Bridge는 프로필 제어를 지원하지 않아요. Desktop을 업데이트해 주세요.',
@@ -247,19 +268,19 @@ function renderDesktopControl(view){
   desktopControlView=view;
   const state=view?.state,button=$('desktopPause');
   button.disabled=desktopControlBusy||!view?.canSet||!view?.fresh;
-  button.textContent=state?.globalPaused?'통합 효과 재개':'통합 효과 일시정지';
+  button.textContent=state?.globalPaused?'Windows 효과 재개':'Windows 효과 일시정지';
   const confirmed=state?`${state.globalPaused?'일시정지':'재개'} 상태${state.persisted?' · 저장됨':' · 저장 안 됨'}`:'확인값 없음';
   const note=desktopControlMessages[view?.notice]||(view?.notice&&view.notice!=='applied'?'Desktop 상태 미확인 · 앱과 연결을 확인해 주세요.':'');
   $('desktopControlStatus').textContent=`Desktop 제어: ${view?.fresh?'':'마지막 확인값 / '}${confirmed}${note?' · '+note:''}`;
   const integration=view?.integration,parts=integration?.parts||{};
   const phase=state?.globalPaused?'일시정지':'재개';
-  const status=!view?.fresh?'error':state?.persisted===false?'saveFailed':view?.pending||['requesting','accepted'].includes(view?.notice)?'waiting':integration?.status||'waiting';
-  $('integrationStatus').textContent=({complete:`전체 ${phase} 적용 완료`,partial:'일부 적용 · 나머지 확인 중',waiting:'적용 확인 중…',error:'통신 오류 · 전체 적용 여부 미확인',saveFailed:'저장 실패 · 현재 상태 확인 필요'})[status]||'적용 상태 미확인';
-  const describe=(part,none)=>({applied:`${phase} 적용 확인`,off:'사용자 설정 OFF · 유지됨',notRequired:none,waiting:'상태 미확인 · 확인 대기'})[part]||'상태 미확인 · 확인 대기';
-  $('webControlStatus').textContent='웹 배경: '+describe(parts.web,'열린 지원 탭 없음');
-  $('youtubeControlStatus').textContent='YouTube 조명: '+describe(parts.youtube,'열린 YouTube 탭 없음')+
+  $('integrationStatus').textContent=state?`Windows ${phase} ${view?.fresh?'확인':'마지막 확인값'} · Chrome은 위 버튼으로 별도 제어`:'Windows 상태 미확인 · Chrome은 독립적으로 사용 가능';
+  const chromePhase=view?.web?.paused?'일시정지':'재개';
+  const applied=web=>!web?.ready||!web.inventoryKnown?'상태 확인 대기':!web.targets.length?'열린 대상 없음':web.unconfirmedCount?'일부 확인 대기':'열린 탭 적용 확인';
+  $('webControlStatus').textContent='웹 배경: Chrome '+chromePhase+' · '+applied(view?.web);
+  $('youtubeControlStatus').textContent='YouTube 조명: Chrome '+chromePhase+' · '+applied(view?.youtube)+
     (!view?.youtube&&view?.web?.ready?' · DEV 확장과 YouTube 페이지를 새로고침해 주세요.':'');
-  $('captureControlStatus').textContent='캡처 처리: '+describe(parts.capture,'캡처 연결 없음');
+  $('captureControlStatus').textContent='캡처 처리: '+(view?.capture?.localApplied?`Chrome ${chromePhase} 적용 확인`:parts.capture==='notRequired'?'캡처 연결 없음':'확인 대기');
   $('desktopDisplayStatus').textContent=state?`Desktop 설정: 전체 ${state.desktopOutput.enabled?'ON':'OFF'} · RGB ${state.desktopOutput.rgbEnabled?'ON':'OFF'} · 영상 ${state.desktopOutput.videoEnabled?'ON':'OFF'}. 실제 창 표시는 대상 앱·수신 상태에 따라 달라집니다.`:'Desktop 표시: 상태 미확인 · Windows 트레이에서도 확인할 수 있어요.';
 }
 async function refreshDesktopControl(){
@@ -285,12 +306,13 @@ async function changeDesktopPause(){
   }
 }
 function startDesktopControlUI(){
+  $('webPause').addEventListener('click',changeChromePause);
   $('desktopPause').addEventListener('click',changeDesktopPause);
   $('desktopControlRefresh').addEventListener('click',refreshDesktopControl);
   let querying=false;
-  const poll=async()=>{if(querying||document.hidden||desktopControlBusy)return;querying=true;try{await refreshDesktopControl();}finally{querying=false;}};
+  const poll=async()=>{if(querying||document.hidden)return;querying=true;try{await Promise.all([refreshChromePause(),refreshDesktopControl()]);}finally{querying=false;}};
   const timer=setInterval(poll,1000);
-  window.addEventListener('unload',()=>{clearInterval(timer);desktopControlSequence++;},{once:true});
+  window.addEventListener('unload',()=>{clearInterval(timer);desktopControlSequence++;chromePauseSequence++;},{once:true});
   poll();
 }
 async function send(message) {
@@ -306,14 +328,15 @@ function renderDesktopControls() {
   $('desktopPair').disabled=desktopPending;
   $('desktopPing').disabled=desktopPending;
   $('desktopForget').disabled=desktopPending||!desktopView.paired;
+  $('windowsConnect').disabled=desktopPending;
   $('pairState').textContent=desktopView.paired?'코드 저장됨':'페어링 필요';
-  $('openPairing').hidden=desktopView.paired;
+  $('openPairing').hidden=false;
   if(desktopPending)$('desktopStatus').textContent='Chrome 송신: 설정 변경 중…';
 }
 async function changeDesktopOutput(work) {
   if(desktopPending)return;
   desktopPending=true;renderDesktopControls();
-  try{await work();setError('');}catch(e){setError(e.message);}
+  try{const reply=await work();if(reply?.connection&&!reply.connection.ok){renderWindowsConnection(reply.connection);throw Error(reply.connection.message);}setError('');}catch(e){setError(e.message);}
   finally{
     desktopPending=false;
     try{await loadStatus();}catch(e){
@@ -431,6 +454,16 @@ function setupNativeConnection(){
     finally{$('nativeCheck').disabled=false;}
   });
 }
+function renderWindowsConnection(connection){
+  $('windowsConnectionStatus').textContent=connection.message;
+  const host={registered:'등록 확인',unregistered:'미등록',unknown:'미확인'};
+  const desktop={running:'실행 중',stopped:'미실행',unknown:'미확인'};
+  const auth={authenticated:'인증 완료',required:'최초 인증 필요',rejected:'인증 실패',unknown:'미확인'};
+  $('windowsAuthStatus').textContent=`Host: ${host[connection.host]||connection.host} · Desktop: ${desktop[connection.desktop]||connection.desktop} · 인증: ${auth[connection.authentication]||connection.authentication}`;
+  $('pairingEntry').open=['pairingRequired','pairingRejected'].includes(connection.code);
+  if(['hostNotRegistered','hostForbidden','hostStartFailed','nativeUnavailable'].includes(connection.code))$('windowsDiagnostics').open=true;
+  if(connection.ok)$('pairingEntry').open=false;
+}
 async function init() {
   setupNativeConnection();
   initTabs();
@@ -487,13 +520,15 @@ async function init() {
     if(desktopPending)return;
     desktopPending=true;renderDesktopControls();setPairError('');$('pairStatus').textContent='연결 처리 중…';
     try{
-      await send({type,...(type==='AW_DESKTOP_PAIR'?{token:$('desktopCode').value.trim()}:{})});
+      const reply=await send({type,...(type==='AW_DESKTOP_PAIR'?{token:$('desktopCode').value.trim()}:{})});
+      if(reply.connection){renderWindowsConnection(reply.connection);if(!reply.connection.ok){setPairError(reply.connection.message);$('pairStatus').textContent='Windows 연결 미완료 · 위 안내를 확인하세요.';return;}}
       $('desktopCode').value='';
       $('pairStatus').textContent=type==='AW_DESKTOP_FORGET'?'Chrome 페어링을 해제했어요.':type==='AW_DESKTOP_PAIR'?'페어링 완료 · Windows 전송 켜짐':'Desktop 연결 응답을 확인했어요.';
     }catch(e){setPairError(e.message);$('pairStatus').textContent='연결 처리 실패 · 입력 코드와 Desktop 앱을 확인해 주세요.';}
     finally{desktopPending=false;await refreshStatus();}
   };
   $('desktopPair').addEventListener('click',()=>pairAction('AW_DESKTOP_PAIR'));
+  $('windowsConnect').addEventListener('click',()=>pairAction('AW_WINDOWS_CONNECT'));
   $('desktopPing').addEventListener('click',()=>pairAction('AW_DESKTOP_PING'));
   $('desktopForget').addEventListener('click',()=>pairAction('AW_DESKTOP_FORGET'));
   $('desktopCode').addEventListener('keydown',event=>{if(event.key==='Enter'){event.preventDefault();pairAction('AW_DESKTOP_PAIR');}});

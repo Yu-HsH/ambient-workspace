@@ -108,6 +108,13 @@ Check 'file-manifest mismatch and changed Chrome fixed identity are refused' {
     $bad=New-TamperedPackage 'identity.zip' 'Browser_Extension/manifest.json' ([Text.Encoding]::UTF8.GetBytes(($manifest|ConvertTo-Json -Depth 12))) -RehashManifest
     Reject {Open-AmbientInstallPackage $bad (Get-FileHash $bad).Hash} 'INSTALL_EXTENSION_ID'
 }
+Check 'internally rehashed product allowlist cannot omit archive entries' {
+    $bad=New-TamperedPackage 'allowlist.zip' 'Installer/product-files.json' ([Text.Encoding]::UTF8.GetBytes('["README.md"]')) -RehashManifest
+    Reject {Open-AmbientInstallPackage $bad (Get-FileHash $bad).Hash} 'INSTALL_PRODUCT_ALLOWLIST'
+    foreach($name in @('Desktop_Companion/settings.json','Desktop_Companion/bridge-pairing.txt','Browser_Extension/source/../../outside.js','docs/images/../private.png','docs/images/unknown.exe')) {
+        Assert-True (-not (Test-InstallRelativePath $name)) ('Private or traversal entry accepted: '+$name)
+    }
+}
 $originalWrite=(Get-Command Write-InstallFile).ScriptBlock
 $originalFree=(Get-Command Get-InstallFreeBytes).ScriptBlock
 Check 'disk-full preflight, copy failure and interruption preserve old files and leave no completed install' {
@@ -188,6 +195,17 @@ try {
         $auth=Test-AmbientInstallerAuthentication $nativeDesktop -ApproveKeyRead
         Assert-True ($auth.hostAuthentication -eq 'authenticated' -and $auth.chromeProfile -eq 'NOT_TESTED') 'Host proof mislabeled as Chrome proof'
         Assert-True (-not [IO.File]::Exists((Join-Path $nativeDesktop 'control-lease.json'))) 'Probe created a Chrome profile lease'
+        # Exercise the new report value behind the same existing origin/profile lease.
+        $testOrigin='chrome-extension://'+$script:InstallerId
+        $hello=Invoke-AmbientBridgeControl ([pscustomobject]@{type='control.hello';profileId=('c'*32)}) $nativeDesktop $testOrigin
+        Assert-True ($hello.ok -and $hello.capabilities -ccontains 'independent-chrome-pause') 'Independent Chrome capability missing'
+        $report=[pscustomobject]@{type='control.applied';profileId=('c'*32);leaseId=$hello.lease.leaseId;instanceId=$hello.state.instanceId;revision=$hello.state.revision;globalPaused=$hello.state.globalPaused;parts=[pscustomobject]@{desktop='applied';web='independent';youtube='notRequired';capture='notRequired'}}
+        Assert-True (Invoke-AmbientBridgeControl $report $nativeDesktop $testOrigin).ok 'Independent Chrome report rejected'
+        $report.parts.desktop='independent'
+        Assert-True ((Invoke-AmbientBridgeControl $report $nativeDesktop $testOrigin).status -eq 'invalid') 'Desktop must never bypass its applied check with independent'
+        $report.parts.desktop='applied';$report.leaseId='d'*32
+        Assert-True ((Invoke-AmbientBridgeControl $report $nativeDesktop $testOrigin).status -eq 'leaseConflict') 'Independent reports bypassed profile lease authentication'
+        [IO.File]::Delete((Join-Path $nativeDesktop 'control-lease.json'))
         Assert-OldPreserved
     }
     Check 'wrong synthetic token is rejected by the real Host without changing keys' {

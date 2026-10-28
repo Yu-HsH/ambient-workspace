@@ -13,7 +13,7 @@
   let lastImage=null,rendererEpoch=0,decodeTask=null,decodingImage=null;
   const clamp=(v,a,b)=>Math.max(a,Math.min(b,Number(v)||0));
   const listen=chrome.runtime.onMessage.addListener.bind(chrome.runtime.onMessage);
-  // Same Desktop authority/checkpoint and worker generation as the web renderer.
+  // Same Chrome pause checkpoint and worker generation as the web renderer.
   const rendererId=crypto.randomUUID().replaceAll('-',''),retiredWorkers=new Set();
   const RENDERER_VERSION='2c2-root-2',ROOT_ID='aw-youtube-ambient';
   const ownedRoots=()=>[...document.querySelectorAll(`#${ROOT_ID}`)].filter(node=>

@@ -2,7 +2,8 @@
 param(
     [string]$PackagePath='', [string]$ExpectedSha256='', [string]$DestinationRoot='',
     [switch]$SourceVerified, [string]$ExistingInstall='', [switch]$ApproveMigration,
-    [switch]$Interactive
+    [switch]$Interactive, [switch]$Console,
+    [ValidateSet('DesktopChrome','ChromeOnly')][string]$InstallMode='DesktopChrome'
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -30,7 +31,7 @@ function Test-InstallRelativePath([string]$Path) {
         if($part -in @('.','..','') -or $part.EndsWith('.') -or $part -match '^(CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(\.|$)'){return $false}
     }
     if($Path -match '(^|/)(settings\.json.*|bridge-pairing\.txt|control-[^.]+\.json.*|bridge-.*|native-mailbox|native-host.*|native-bridge.*|native-registration-backups|native-profile-backups|AmbientNativeHost\.exe.*|.*-log\.txt.*|\.git|\.env.*)(/|$)'){return $false}
-    return ($Path -match '^(Desktop_Companion/[^/]+\.(ps1|xaml|cs|bat|json|js|html)|Browser_Extension/(manifest\.json|identity\.public\.json|source/[^/]+\.(js|html|css)|icons/[^/]+\.(svg|png))|docs/[A-Za-z0-9._-]+\.md|licenses/[^/]+\.txt|Installer/(Install-AmbientWorkspace\.ps1|product-files\.json)|Install\.bat|README\.md|CHANGELOG\.md|LICENSE|COPYRIGHT\.md|THIRD_PARTY_NOTICES\.md)$')
+    return ($Path -match '^(Desktop_Companion/[^/]+\.(ps1|xaml|cs|bat|json|js|html)|Browser_Extension/(manifest\.json|identity\.public\.json|source/[^/]+\.(js|html|css)|icons/[^/]+\.(svg|png))|docs/([A-Za-z0-9._-]+\.md|images/[A-Za-z0-9._-]+\.png)|licenses/[^/]+\.txt|Installer/(Install-AmbientWorkspace\.ps1|product-files\.json)|Install\.bat|README\.md|CHANGELOG\.md|LICENSE|COPYRIGHT\.md|THIRD_PARTY_NOTICES\.md)$')
 }
 function Assert-InstallIdentity($Files) {
     try {
@@ -71,12 +72,17 @@ function Open-AmbientInstallPackage([string]$Path,[string]$ExpectedHash) {
         foreach($required in @('Desktop_Companion/File-Security.ps1','Desktop_Companion/Test-FileSecurity.ps1','Desktop_Companion/Start.bat','Desktop_Companion/Launch-AmbientDesktop.ps1','Desktop_Companion/Control-State.ps1','Desktop_Companion/Native-Registration.ps1','Desktop_Companion/Register-NativeHost.ps1','Browser_Extension/manifest.json','Browser_Extension/identity.public.json','LICENSE','THIRD_PARTY_NOTICES.md')) {
             if(-not $files.ContainsKey($required)){Stop-AmbientInstall 'INSTALL_PRODUCT_INCOMPLETE'}
         }
+        if(-not $files.ContainsKey('Installer/product-files.json')){Stop-AmbientInstall 'INSTALL_PRODUCT_INCOMPLETE'}
+        $allowlist=[Text.Encoding]::UTF8.GetString($files['Installer/product-files.json']).TrimStart([char]0xFEFF)|ConvertFrom-Json
+        $allowed=@{}
+        foreach($name in $allowlist){if(-not (Test-InstallRelativePath $name) -or $allowed.ContainsKey($name) -or -not $files.ContainsKey($name)){Stop-AmbientInstall 'INSTALL_PRODUCT_ALLOWLIST'};$allowed[$name]=$true}
+        if($allowed.Count -ne $files.Count-1){Stop-AmbientInstall 'INSTALL_PRODUCT_ALLOWLIST'}
         Assert-InstallIdentity $files
         return [pscustomobject]@{files=$files;manifest=$record;zipHash=(Get-InstallHash $raw)}
     } finally { if($zip){$zip.Dispose()}; if($memory){$memory.Dispose()}; if($source){$source.Dispose()} }
 }
 function Initialize-InstallPolicy($Package) {
-    # The policy bytes have already been authenticated by the independently obtained ZIP hash.
+    # Integrity relative to the independently obtained hash, NOT publisher authentication.
     . ([ScriptBlock]::Create([Text.Encoding]::UTF8.GetString($Package.files['Desktop_Companion/File-Security.ps1']).TrimStart([char]0xFEFF)))
     # Export into this script's scope, without trusting a neighboring extracted file.
     foreach($name in @('Stop-AmbientFileSecurity','Test-AmbientPathAcl','Assert-AmbientInstallSecurity')) {
@@ -176,6 +182,15 @@ function Get-InstallErrorCode($Record) {
 function Get-InstallErrorHelp([string]$Code) {
     switch -Wildcard ($Code) {
         'INSTALL_DESKTOP_RUNNING' {return 'Desktop이 실행 중입니다. 트레이에서 Desktop 앱 종료를 선택한 뒤 다시 설치하세요. 강제 종료하지 않습니다.'}
+        'INSTALL_EXTRACT_ALL' {return 'ZIP 안에서 실행했거나 일부 파일만 풀었습니다. ZIP을 마우스 오른쪽 버튼으로 눌러 모두 압축 풀기를 선택한 뒤 풀린 폴더의 Install.bat을 실행하세요. 원본 ZIP도 보관하세요.'}
+        'INSTALL_PACKAGE_MISSING' {return '다운로드한 원본 ZIP을 찾지 못했습니다. ZIP 선택으로 압축 해제 전의 Windows 설치 ZIP을 선택하세요. Source code (zip)은 사용할 수 없습니다.'}
+        'INSTALL_MANIFEST_*' {return '새 설치 마법사용 Windows ZIP이 아닙니다. Source code (zip) 또는 공개 rc.1 ZIP 대신 해당 버전의 새 Windows 설치 ZIP을 선택하세요.'}
+        'INSTALL_PRODUCT_*' {return '설치에 필요한 제품 파일이 없거나 허용 목록과 다릅니다. 이 ZIP을 실행하지 말고 공식 출처의 같은 버전 Windows 설치 ZIP을 다시 확인하세요.'}
+        'INSTALL_CHROME_NOT_FOUND' {return 'Chrome 실행 위치를 찾지 못했습니다. Chrome 주소창에 chrome://extensions를 직접 입력하세요.'}
+        'INSTALL_CHROME_ONLY_MIGRATION' {return 'Chrome만 사용에서는 Desktop 개인 파일을 읽거나 이전하지 않습니다. 업데이트하려면 Windows 앱도 사용을 선택하세요. Chrome 확장 설정은 기존 프로필에 유지됩니다.'}
+        'INSTALL_EXTENSION_NOT_CONFIRMED' {return 'Chrome에서 개발자 모드를 켜고 복사한 Browser_Extension 폴더를 로드하세요. 확장 목록의 Ambient Workspace를 확인한 뒤 확인란을 선택하세요.'}
+        'INSTALL_POWERSHELL_REQUIRED' {return 'Windows PowerShell 5.1과 WPF가 필요합니다. Install.bat을 사용하세요. 조직 정책으로 차단됐다면 정책을 바꾸지 말고 관리자에게 문의하세요.'}
+        'INSTALL_NTFS_REQUIRED' {return '개인 계정의 로컬 NTFS 드라이브가 필요합니다. 네트워크·공유·이동식 드라이브 대신 기본 설치 위치를 사용하세요.'}
         'INSTALL_*HASH*' {return '파일 무결성 검사에 실패했습니다. 원본을 실행하지 말고 공식 Release의 ZIP과 별도로 확인한 SHA-256으로 다시 시도하세요.'}
         'INSTALL_ACL_*' {return '폴더 접근 권한을 안전하다고 확인하지 못했습니다. 기존 권한을 고치지 말고 사용자 폴더 바로 아래의 새 앱 전용 위치를 선택하세요.'}
         'INSTALL_FOLDER_EXISTS' {return '같은 위치가 이미 존재합니다. 기존 파일은 보존했습니다. 다른 새 설치 폴더를 선택하세요.'}
@@ -193,16 +208,37 @@ function Get-InstallErrorHelp([string]$Code) {
         default {return '설치를 완료하지 못했습니다. 새 불완전 폴더는 실행하지 마세요. 기존 설치·설정·키·등록은 그대로 두고 오류 코드와 설치 안내를 확인하세요.'}
     }
 }
-function Install-AmbientWorkspace([string]$PackagePath,[string]$ExpectedSha256,[string]$DestinationRoot,[switch]$SourceVerified,[string]$ExistingInstall='',[switch]$ApproveMigration) {
+function Select-InstallModePackage($Package,[ValidateSet('DesktopChrome','ChromeOnly')][string]$Mode) {
+    if($Mode -eq 'DesktopChrome'){return $Package}
+    # Only a verified in-memory package is filtered. Never re-read extracted product files.
+    $record=[Text.Encoding]::UTF8.GetString($Package.files['INSTALL-MANIFEST.json']).TrimStart([char]0xFEFF) | ConvertFrom-Json
+    $files=@{};$selected=@()
+    foreach($item in $record.files) {
+        if($item.path -match '^(Desktop_Companion/|Installer/|Install\.bat$)'){continue}
+        $files[$item.path]=$Package.files[$item.path];$selected+=$item
+    }
+    $record.files=$selected
+    $record | Add-Member -NotePropertyName installationMode -NotePropertyValue 'ChromeOnly'
+    $files['INSTALL-MANIFEST.json']=[Text.Encoding]::UTF8.GetBytes(($record|ConvertTo-Json -Depth 6))
+    return [pscustomobject]@{files=$files;manifest=$record;zipHash=$Package.zipHash}
+}
+function Assert-InstallModeSecurity([string]$Directory,[string]$Mode) {
+    $product=if($Mode -eq 'ChromeOnly'){'Browser_Extension'}else{'Desktop_Companion'}
+    Assert-AmbientInstallSecurity (Join-Path $Directory $product)
+    if($Mode -ne 'ChromeOnly'){Test-InstallLaunchPrerequisites (Join-Path $Directory $product)}
+}
+function Install-AmbientWorkspace([string]$PackagePath,[string]$ExpectedSha256,[string]$DestinationRoot,[switch]$SourceVerified,[string]$ExistingInstall='',[switch]$ApproveMigration,[ValidateSet('DesktopChrome','ChromeOnly')][string]$InstallMode='DesktopChrome') {
     if($PSVersionTable.PSEdition -ne 'Desktop' -or $ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage'){Stop-AmbientInstall 'INSTALL_POWERSHELL_REQUIRED'}
     if([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA'){Stop-AmbientInstall 'INSTALL_STA_REQUIRED'}
     if(-not $SourceVerified){Stop-AmbientInstall 'INSTALL_SOURCE_APPROVAL_REQUIRED'}
+    if($InstallMode -eq 'ChromeOnly' -and ($ExistingInstall -or $ApproveMigration)){Stop-AmbientInstall 'INSTALL_CHROME_ONLY_MIGRATION'}
     if($ExistingInstall -and -not $ApproveMigration){Stop-AmbientInstall 'INSTALL_MIGRATION_APPROVAL_REQUIRED'}
     Write-Host '파일 무결성 확인 중…'
     $package=Open-AmbientInstallPackage $PackagePath $ExpectedSha256
     if($package.manifest.reviewOnly){Write-Host '개발 검토용 패키지입니다. 공개 배포물로 승인된 것이 아닙니다.'}
     Initialize-InstallPolicy $package
     Assert-InstallHelper $package
+    $package=Select-InstallModePackage $package $InstallMode
     if(-not $DestinationRoot){$DestinationRoot=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'AmbientWorkspace'}
     $root=[IO.Path]::GetFullPath($DestinationRoot).TrimEnd('\')
     if($root.StartsWith('\\') -or $root -eq [IO.Path]::GetPathRoot($root).TrimEnd('\')){Stop-AmbientInstall 'INSTALL_DESTINATION_INVALID'}
@@ -214,7 +250,7 @@ function Install-AmbientWorkspace([string]$PackagePath,[string]$ExpectedSha256,[
     if([IO.Directory]::Exists((Join-Path $root 'Desktop_Companion')) -or [IO.File]::Exists((Join-Path $root 'Start.bat'))){Stop-AmbientInstall 'INSTALL_DESTINATION_EXISTING_PRODUCT'}
     $lease=$null; $personal=@(); $stage=''; $published=$false
     try {
-        $lease=Enter-InstallDesktopLease
+        if($InstallMode -ne 'ChromeOnly'){$lease=Enter-InstallDesktopLease}
         # No old data contents are read before the explicit approval and Desktop lease.
         if($ExistingInstall) {
             $old=[IO.Path]::GetFullPath($ExistingInstall).TrimEnd('\')
@@ -264,11 +300,12 @@ function Install-AmbientWorkspace([string]$PackagePath,[string]$ExpectedSha256,[
             $item.stream.Position=0
             if((Get-InstallHash (Read-InstallStream $item.stream 1048576)) -cne $item.hash -or (Get-InstallHash ([IO.File]::ReadAllBytes($target))) -cne $item.hash){Stop-AmbientInstall 'INSTALL_MIGRATION_HASH'}
         }
-        Assert-AmbientInstallSecurity (Join-Path $stage 'Desktop_Companion')
-        Test-InstallLaunchPrerequisites (Join-Path $stage 'Desktop_Companion')
-        $aclOutput=@(& (Join-Path $PSHOME 'powershell.exe') -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $stage 'Desktop_Companion/Test-FileSecurity.ps1'))
-        if($LASTEXITCODE -ne 0){Stop-AmbientInstall 'INSTALL_FINAL_ACL'}
-        Write-Host ($aclOutput -join "`n")
+        Assert-InstallModeSecurity $stage $InstallMode
+        if($InstallMode -ne 'ChromeOnly'){
+            $aclOutput=@(& (Join-Path $PSHOME 'powershell.exe') -NoProfile -NonInteractive -File (Join-Path $stage 'Desktop_Companion/Test-FileSecurity.ps1'))
+            if($LASTEXITCODE -ne 0){Stop-AmbientInstall 'INSTALL_FINAL_ACL'}
+            Write-Host ($aclOutput -join "`n")
+        }
         Assert-InstalledProduct $stage $package
         # A completion marker is only written after all verification. Failed stages remain private.
         $name=$package.manifest.version+'-'+[Guid]::NewGuid().ToString('N').Substring(0,8)
@@ -276,13 +313,12 @@ function Install-AmbientWorkspace([string]$PackagePath,[string]$ExpectedSha256,[
         if([IO.Directory]::Exists($final)){Stop-AmbientInstall 'INSTALL_FOLDER_EXISTS'}
         if([IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($stage)) -cne $root -or [IO.Path]::GetDirectoryName([IO.Path]::GetFullPath($final)) -cne $root -or [IO.Path]::GetFileName($stage) -cnotmatch '^\.pending-[a-f0-9]{32}$'){Stop-AmbientInstall 'INSTALL_DESTINATION_INVALID'}
         [IO.Directory]::Move($stage,$final);$stage=$final
-        Assert-AmbientInstallSecurity (Join-Path $final 'Desktop_Companion')
-        Test-InstallLaunchPrerequisites (Join-Path $final 'Desktop_Companion')
+        Assert-InstallModeSecurity $final $InstallMode
         Assert-InstalledProduct $final $package
-        Write-InstallFile (Join-Path $final 'INSTALL-COMPLETE.json') ([Text.Encoding]::UTF8.GetBytes((@{schemaVersion=1;zipSha256=$package.zipHash;authentication='NOT_TESTED';migrated=[bool]$ExistingInstall}|ConvertTo-Json -Compress)))
+        Write-InstallFile (Join-Path $final 'INSTALL-COMPLETE.json') ([Text.Encoding]::UTF8.GetBytes((@{schemaVersion=1;zipSha256=$package.zipHash;installationMode=$InstallMode;authentication='NOT_TESTED';migrated=[bool]$ExistingInstall}|ConvertTo-Json -Compress)))
         $published=$true
         Write-Host '파일 무결성 검사 통과 · 설치 완료'
-        return [pscustomobject]@{directory=$final;desktop=(Join-Path $final 'Desktop_Companion');extension=(Join-Path $final 'Browser_Extension');migrated=[bool]$ExistingInstall;authentication='NOT_TESTED'}
+        return [pscustomobject]@{directory=$final;desktop=$(if($InstallMode -eq 'ChromeOnly'){''}else{Join-Path $final 'Desktop_Companion'});extension=(Join-Path $final 'Browser_Extension');migrated=[bool]$ExistingInstall;installationMode=$InstallMode;authentication='NOT_TESTED'}
     } catch {
         if($stage -and -not $published){Write-Host ('설치를 완료하지 못한 새 폴더: '+$stage+' · 실행하지 마세요. 원본은 보존했습니다.')}
         throw
@@ -368,9 +404,216 @@ function Open-AmbientInstallerNativeSetup([string]$Directory,[switch]$ApproveReg
     if(-not $ApproveRegistration){Stop-AmbientInstall 'INSTALL_NATIVE_APPROVAL_REQUIRED'}
     $null=Get-AmbientInstallerNativeState $Directory
     # Existing GUI makes the final Install/Repair choice and retains its rollback journal.
-    & (Join-Path $PSHOME 'powershell.exe') -NoProfile -STA -ExecutionPolicy Bypass -File (Join-Path $Directory 'Register-NativeHost.ps1') -Gui
+    & (Join-Path $PSHOME 'powershell.exe') -NoProfile -STA -File (Join-Path $Directory 'Register-NativeHost.ps1') -Gui
     if($LASTEXITCODE -ne 0){Stop-AmbientInstall 'INSTALL_NATIVE_SETUP_FAILED'}
     return (Get-AmbientInstallerNativeState $Directory)
+}
+function Get-InstallPackageHint([string]$ExtractedRoot) {
+    # A filename hint only; it never grants trust or supplies an expected hash.
+    $candidates=@((Join-Path (Split-Path $ExtractedRoot) ((Split-Path $ExtractedRoot -Leaf)+'.zip')))
+    $manifestPath=Join-Path $ExtractedRoot 'INSTALL-MANIFEST.json'
+    if([IO.File]::Exists($manifestPath)) {
+        try {
+            $stream=[IO.File]::OpenRead($manifestPath)
+            try{$record=[Text.Encoding]::UTF8.GetString((Read-InstallStream $stream 262144)).TrimStart([char]0xFEFF)|ConvertFrom-Json}finally{$stream.Dispose()}
+            if($record.PSObject.Properties['archiveFileName'] -and $record.archiveFileName -cmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,120}\.zip$') {
+                $candidates+=Join-Path (Split-Path $ExtractedRoot) $record.archiveFileName
+                $candidates+=Join-Path $ExtractedRoot $record.archiveFileName
+            }
+        } catch { return '' }
+    }
+    foreach($path in $candidates){if([IO.File]::Exists($path)){return $path}}
+    return ''
+}
+function Assert-InstallExtractedLayout([string]$Root) {
+    foreach($name in @('Install.bat','INSTALL-MANIFEST.json','Installer/Install-AmbientWorkspace.ps1','Browser_Extension/manifest.json','Desktop_Companion/Start.bat')) {
+        if(-not [IO.File]::Exists((Join-Path $Root $name))){Stop-AmbientInstall 'INSTALL_EXTRACT_ALL'}
+    }
+}
+function Open-InstallChromeExtensions {
+    foreach($parent in @([Environment]::GetFolderPath('ProgramFiles'),[Environment]::GetFolderPath('ProgramFilesX86'),[Environment]::GetFolderPath('LocalApplicationData'))) {
+        $chrome=Join-Path $parent 'Google/Chrome/Application/chrome.exe'
+        if([IO.File]::Exists($chrome)){Start-Process -FilePath $chrome -ArgumentList 'chrome://extensions/' ;return}
+    }
+    Stop-AmbientInstall 'INSTALL_CHROME_NOT_FOUND'
+}
+function Start-InstalledAmbientDesktop([string]$Directory) {
+    Assert-AmbientInstallerCompleted (Split-Path $Directory)
+    Assert-AmbientInstallSecurity $Directory
+    Start-Process -FilePath (Join-Path $PSHOME 'powershell.exe') -WindowStyle Hidden -ArgumentList ('-NoProfile -NonInteractive -STA -File "'+(Join-Path $Directory 'Launch-AmbientDesktop.ps1')+'"')
+    # Starting a process is not proof of readiness or authentication. Chrome checks both.
+}
+function New-AmbientInstallWizard([string]$ExtractedRoot) {
+    if($PSVersionTable.PSEdition -ne 'Desktop' -or [Threading.Thread]::CurrentThread.ApartmentState -ne 'STA'){Stop-AmbientInstall 'INSTALL_POWERSHELL_REQUIRED'}
+    Add-Type -AssemblyName PresentationFramework,System.Windows.Forms
+    # Embedded UI: no neighboring XAML or script is executed before package verification.
+    $xaml=@'
+<Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" Title="Ambient Workspace · 설치 시작" Width="800" Height="800" MinWidth="640" MinHeight="560" WindowStartupLocation="CenterScreen" Background="#101724" Foreground="#EFF5FF" FontFamily="Segoe UI, Malgun Gothic" FontSize="14">
+  <Window.Resources>
+    <Style TargetType="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/><Setter Property="Margin" Value="0,0,0,10"/></Style>
+    <Style TargetType="TextBox"><Setter Property="Background" Value="#1E2C40"/><Setter Property="Foreground" Value="#EFF5FF"/><Setter Property="BorderBrush" Value="#526581"/><Setter Property="Padding" Value="9"/><Setter Property="Margin" Value="0,0,0,10"/></Style>
+    <Style TargetType="Button"><Setter Property="Padding" Value="16,10"/><Setter Property="Margin" Value="0,0,8,8"/><Setter Property="Background" Value="#D6E7FF"/><Setter Property="Foreground" Value="#112139"/><Setter Property="BorderThickness" Value="0"/></Style>
+    <Style TargetType="CheckBox"><Setter Property="Margin" Value="0,5,0,12"/><Setter Property="Foreground" Value="#EFF5FF"/></Style>
+    <Style TargetType="RadioButton"><Setter Property="Margin" Value="0,5,18,12"/><Setter Property="Foreground" Value="#EFF5FF"/></Style>
+  </Window.Resources>
+  <Grid Margin="28">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <StackPanel Grid.Row="0">
+      <TextBlock Text="AMBIENT WORKSPACE / RC.2 LOCAL REVIEW" Foreground="#91B6F8" FontSize="12"/>
+      <TextBlock x:Name="Heading" Text="설치 시작" FontSize="28" FontWeight="SemiBold"/>
+      <TextBlock x:Name="StepLabel" Text="1 설치 시작  →  2 Chrome 확장 설치  →  3 Windows 연결  →  4 설치 완료" Foreground="#B9C9DF"/>
+    </StackPanel>
+    <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Margin="0,12,0,12">
+      <Grid>
+        <StackPanel x:Name="Page1">
+          <TextBlock Text="ZIP 전체를 모두 압축 풀기한 뒤 실행하세요. 원본 ZIP은 검증에 필요하니 보관하세요."/>
+          <TextBlock Text="다운로드한 Windows 설치 ZIP" FontWeight="SemiBold"/>
+          <DockPanel><Button x:Name="BrowseZip" Content="ZIP 선택" DockPanel.Dock="Right"/><TextBox x:Name="ZipPath" IsReadOnly="True" AutomationProperties.Name="원본 ZIP 경로"/></DockPanel>
+          <TextBlock Text="공식 Release 본문에서 복사한 ZIP SHA-256" FontWeight="SemiBold"/>
+          <TextBox x:Name="ExpectedHash" MaxLength="64" AutomationProperties.Name="별도로 게시된 SHA-256"/>
+          <TextBlock Text="ZIP 안의 체크섬을 자동으로 신뢰하지 않습니다. 이 비교는 파일 일치 확인이며 배포자 전자서명이 아닙니다. 로컬 검토 ZIP은 별도 검토 기록의 해시를 사용합니다." Foreground="#B9C9DF" FontSize="12"/>
+          <CheckBox x:Name="SourceConsent"><TextBlock Text="공식 다운로드 출처와 별도로 게시된 해시를 확인했습니다."/></CheckBox>
+          <WrapPanel><RadioButton x:Name="DesktopMode" GroupName="Mode" Content="Windows 앱도 사용" IsChecked="True"/><RadioButton x:Name="ChromeMode" GroupName="Mode" Content="Chrome만 사용"/></WrapPanel>
+          <TextBlock Text="Chrome만 사용: 확장과 안내 문서만 설치합니다. Desktop 실행·등록·페어링 없이 웹 효과를 쓸 수 있습니다." Foreground="#B9C9DF" FontSize="12"/>
+          <CheckBox x:Name="UpdateMode" Content="기존 Desktop에서 업데이트 · 설정과 키 보존"/>
+          <StackPanel x:Name="MigrationPanel" Visibility="Collapsed">
+            <DockPanel><Button x:Name="BrowseOld" Content="기존 폴더 선택" DockPanel.Dock="Right"/><TextBox x:Name="OldPath" IsReadOnly="True" AutomationProperties.Name="기존 설치 폴더"/></DockPanel>
+            <CheckBox x:Name="MigrationConsent"><TextBlock Text="기존 settings.json · settings.json.bak · bridge-pairing.txt 읽기와 새 폴더로 복사를 승인합니다. 원본은 보존합니다."/></CheckBox>
+          </StackPanel>
+          <Expander Header="설치 위치 · 고급" Foreground="#EFF5FF" Margin="0,0,0,12"><StackPanel Margin="0,12,0,0"><TextBox x:Name="Destination" AutomationProperties.Name="새 설치 관리 폴더"/><TextBlock Text="현재 사용자 전용 로컬 NTFS 폴더에 버전별 새 폴더를 만듭니다. 기존 설치를 덮어쓰거나 기존 폴더 권한을 고치지 않습니다."/></StackPanel></Expander>
+        </StackPanel>
+        <StackPanel x:Name="Page2" Visibility="Collapsed">
+          <TextBlock Text="Chrome에서 한 번만 직접 추가하세요" FontSize="21" FontWeight="SemiBold"/>
+          <TextBlock Text="1. Chrome 확장 관리 열기를 누르세요. 열리지 않으면 Chrome 주소창에 chrome://extensions를 입력하세요."/>
+          <Button x:Name="OpenChrome" Content="Chrome 확장 관리 열기" HorizontalAlignment="Left"/>
+          <TextBlock Text="2. 오른쪽 위 개발자 모드를 켜고 압축해제된 확장 프로그램을 로드합니다 버튼을 누르세요. Chrome 버전에 따라 띄어쓰기는 다를 수 있습니다."/>
+          <TextBlock Text="3. 폴더 위치 복사를 누르고 폴더 선택 창의 주소창에 붙여넣으세요. 아래 Browser_Extension 폴더 자체를 선택합니다. source 또는 상위 폴더가 아닙니다."/>
+          <TextBox x:Name="ExtensionPath" IsReadOnly="True" AutomationProperties.Name="Chrome에 추가할 Browser_Extension 폴더"/>
+          <Button x:Name="CopyExtension" Content="폴더 위치 복사" HorizontalAlignment="Left"/>
+          <CheckBox x:Name="ExtensionConfirmed"><TextBlock Text="Chrome 확장 목록에 Ambient Workspace가 보입니다. (직접 확인)"/></CheckBox>
+          <TextBlock Text="업데이트라면 같은 고정 ID의 기존 확장이 새 설치 폴더를 사용하는지 확인하세요. 확장을 삭제하거나 Chrome 프로필을 초기화하지 마세요. 설치된 폴더는 이동·삭제하지 마세요." Foreground="#B9C9DF"/>
+          <TextBlock Text="Chrome Web Store에는 아직 게시되지 않았습니다. 자동 설치나 Chrome 보안 정책 우회는 하지 않습니다." Foreground="#B9C9DF"/>
+        </StackPanel>
+        <StackPanel x:Name="Page3" Visibility="Collapsed">
+          <TextBlock Text="Windows 앱까지 연결할 때만 진행하세요" FontSize="21" FontWeight="SemiBold"/>
+          <TextBlock Text="1. Desktop 실행을 누르세요. 이미 다른 버전이 실행 중이면 그 트레이에서 Desktop 앱 종료를 선택한 뒤 다시 누르세요."/>
+          <Button x:Name="StartDesktop" Content="Desktop 실행" HorizontalAlignment="Left"/>
+          <TextBlock Text="2. 연결 등록 열기로 기존 등록 화면을 여세요. 처음 등록 또는 이 폴더로 재등록 버튼을 누를 때 현재 사용자 레지스트리가 변경됩니다. 아래 버튼만으로 등록되지는 않습니다."/>
+          <Button x:Name="OpenNative" Content="연결 등록 열기" HorizontalAlignment="Left"/>
+          <TextBlock x:Name="NativeProgress" Text="Windows 연결 경로: 아직 확인하지 않음" Foreground="#91B6F8"/>
+          <TextBlock Text="3. Chrome 팝업 → 연결 설정 → Windows 연결을 누르세요. 연결 경로·Desktop 실행·기존 인증을 순서대로 검사합니다. 최초 인증 안내가 나올 때만 Desktop 설정 → 연결의 페어링 코드 복사로 기존 코드를 붙여넣고 코드 저장 · 연결 검사를 누르세요."/>
+          <TextBlock Text="실제 Desktop 인증: Chrome 팝업에서 확인 / YouTube 캡처: 사용자가 별도 승인" Foreground="#91B6F8"/>
+          <TextBlock Text="페어링 키는 설치 화면에서 읽거나 새로 만들지 않습니다. Windows 연결은 기존 rc.2 팝업을 그대로 사용합니다. 지금 연결하지 않아도 웹 효과는 사용할 수 있습니다." Foreground="#B9C9DF"/>
+        </StackPanel>
+        <StackPanel x:Name="Page4" Visibility="Collapsed">
+          <TextBlock Text="파일 설치가 완료되었습니다" FontSize="23" FontWeight="SemiBold"/>
+          <TextBlock x:Name="CompletionText"/>
+          <TextBlock Text="실제 설치 폴더" FontWeight="SemiBold"/><TextBox x:Name="InstalledPath" IsReadOnly="True"/>
+          <TextBlock x:Name="LaunchLabel" Text="다음 실행 파일" FontWeight="SemiBold"/><TextBox x:Name="LaunchPath" IsReadOnly="True"/>
+          <Button x:Name="CopyLaunch" Content="실행 위치 복사" HorizontalAlignment="Left"/>
+          <TextBlock Text="바로 시작하기" FontSize="20" FontWeight="SemiBold" Margin="0,18,0,10"/>
+          <TextBlock Text="그라데이션: ChatGPT · Claude · Gemini · Notion 탭을 새로고침하세요. YouTube 연결 없이 웹 배경을 사용할 수 있습니다."/>
+          <TextBlock Text="영상 배경: YouTube 영상 로딩을 마치고 팝업의 YouTube 연결을 누르세요. 공유 선택창이 나오면 해당 YouTube 탭만 직접 승인하세요."/>
+          <TextBlock Text="Windows 출력: 실제 Windows 연결 확인 뒤 Windows로 전송을 켜세요. 영상도 원하면 흐릿한 영상도 전송과 Desktop의 영상 사용을 확인하세요."/>
+          <TextBlock Text="Chrome 효과 일시정지/재개는 Desktop 없이 동작합니다. 캡처를 끝내려면 취소·해제를 누르세요." Foreground="#B9C9DF"/>
+        </StackPanel>
+      </Grid>
+    </ScrollViewer>
+    <Border Grid.Row="2" Background="#1B293D" Padding="14" Margin="0,0,0,16" CornerRadius="6"><StackPanel><TextBlock x:Name="UserStatus" Text="지원 환경과 파일을 확인한 뒤 새 개인 폴더에 설치합니다." Margin="0"/><TextBlock x:Name="ErrorCode" Foreground="#FFBFAC" FontFamily="Consolas" FontSize="12" Margin="0,7,0,0"/></StackPanel></Border>
+    <DockPanel Grid.Row="3" LastChildFill="False"><Button x:Name="Cancel" Content="취소" DockPanel.Dock="Left"/><Button x:Name="Next" Content="확인 후 설치" DockPanel.Dock="Right" Margin="0,0,0,8"/><Button x:Name="Back" Content="이전" DockPanel.Dock="Right" IsEnabled="False"/></DockPanel>
+  </Grid>
+</Window>
+'@
+    $reader=[Xml.XmlNodeReader]::new([xml]$xaml)
+    try{$window=[Windows.Markup.XamlReader]::Load($reader)}finally{$reader.Close()}
+    $window.MaxHeight=[Math]::Max(560,[Windows.SystemParameters]::WorkArea.Height-24)
+    $window.Height=[Math]::Min($window.Height,$window.MaxHeight)
+    $controls=@{}
+    foreach($name in @('Heading','StepLabel','Page1','Page2','Page3','Page4','ZipPath','BrowseZip','ExpectedHash','SourceConsent','DesktopMode','ChromeMode','UpdateMode','MigrationPanel','OldPath','BrowseOld','MigrationConsent','Destination','OpenChrome','ExtensionPath','CopyExtension','ExtensionConfirmed','StartDesktop','OpenNative','NativeProgress','CompletionText','InstalledPath','LaunchLabel','LaunchPath','CopyLaunch','UserStatus','ErrorCode','Cancel','Next','Back')){$controls[$name]=$window.FindName($name)}
+    $state=[pscustomobject]@{window=$window;controls=$controls;step=1;result=$null;busy=$false;cancelled=$false;finished=$false}
+    $controls.ZipPath.Text=Get-InstallPackageHint $ExtractedRoot
+    $controls.Destination.Text=Join-Path ([Environment]::GetFolderPath('LocalApplicationData')) 'AmbientWorkspace'
+    $render={
+        foreach($i in 1..4){$state.controls['Page'+$i].Visibility=if($i -eq $state.step){'Visible'}else{'Collapsed'}}
+        $state.controls.Heading.Text=@('','설치 시작','Chrome 확장 설치','Windows 연결','설치 완료')[$state.step]
+        $state.controls.Next.Content=@('','확인 후 설치','다음','나중에 연결 · 마치기','닫기')[$state.step]
+        $state.controls.Back.IsEnabled=$state.step -gt 2
+        $state.controls.Cancel.Content=if($state.step -eq 1){'취소'}else{'닫기 · 나중에 계속'}
+        $state.controls.ErrorCode.Text=''
+    }.GetNewClosure()
+    $run={param([scriptblock]$Action)
+        if($state.busy){return}
+        $state.controls.ErrorCode.Text=''
+        try{& $Action}catch{$code=Get-InstallErrorCode $_;$state.controls.UserStatus.Text=Get-InstallErrorHelp $code;$state.controls.ErrorCode.Text='원인 코드: '+$code}
+    }.GetNewClosure()
+    $controls.BrowseZip.Add_Click({&$run {
+        $dialog=[Microsoft.Win32.OpenFileDialog]::new();$dialog.Title='다운로드한 원본 Windows 설치 ZIP 선택';$dialog.Filter='Windows 설치 ZIP (*.zip)|*.zip'
+        if($dialog.ShowDialog($state.window)){$state.controls.ZipPath.Text=$dialog.FileName}
+    }}.GetNewClosure())
+    $controls.BrowseOld.Add_Click({&$run {
+        $dialog=[Windows.Forms.FolderBrowserDialog]::new();$dialog.Description='기존 설치 루트 또는 Desktop_Companion 폴더 선택';$dialog.ShowNewFolderButton=$false
+        try{if($dialog.ShowDialog() -eq 'OK'){$state.controls.OldPath.Text=$dialog.SelectedPath}}finally{$dialog.Dispose()}
+    }}.GetNewClosure())
+    $controls.UpdateMode.Add_Checked({$state.controls.MigrationPanel.Visibility='Visible'}.GetNewClosure())
+    $controls.UpdateMode.Add_Unchecked({$state.controls.MigrationPanel.Visibility='Collapsed';$state.controls.MigrationConsent.IsChecked=$false}.GetNewClosure())
+    $controls.ChromeMode.Add_Checked({$state.controls.UpdateMode.IsChecked=$false;$state.controls.UpdateMode.IsEnabled=$false}.GetNewClosure())
+    $controls.DesktopMode.Add_Checked({$state.controls.UpdateMode.IsEnabled=$true}.GetNewClosure())
+    $controls.OpenChrome.Add_Click({&$run {Open-InstallChromeExtensions;$state.controls.UserStatus.Text='Chrome에서 개발자 모드를 켜고 아래 폴더를 직접 선택하세요.'}}.GetNewClosure())
+    $controls.CopyExtension.Add_Click({&$run {[Windows.Clipboard]::SetText($state.result.extension);$state.controls.UserStatus.Text='확장 폴더 위치를 복사했습니다. Chrome 폴더 선택 창의 주소창에 붙여넣으세요.'}}.GetNewClosure())
+    $controls.CopyLaunch.Add_Click({&$run {[Windows.Clipboard]::SetText($state.controls.LaunchPath.Text);$state.controls.UserStatus.Text='실행 위치를 복사했습니다.'}}.GetNewClosure())
+    $controls.StartDesktop.Add_Click({&$run {Start-InstalledAmbientDesktop $state.result.desktop;$state.controls.UserStatus.Text='Desktop 실행을 요청했습니다. 트레이 아이콘과 Chrome Windows 연결에서 실제 실행을 확인하세요.'}}.GetNewClosure())
+    $controls.OpenNative.Add_Click({&$run {
+        $native=Open-AmbientInstallerNativeSetup $state.result.desktop -ApproveRegistration
+        $labels=@{registered='현재 설치로 등록됨 · 실제 인증은 Chrome에서 확인';reregisterRequired='다른 위치가 등록됨 · 이 폴더로 재등록 필요';installRequired='아직 등록되지 않음'}
+        $state.controls.NativeProgress.Text='Windows 연결 경로: '+$labels[$native.status]
+        $state.controls.UserStatus.Text='등록과 실제 인증은 별도입니다. Chrome 팝업의 Windows 연결을 누르세요.'
+    }}.GetNewClosure())
+    $controls.Next.Add_Click({&$run {
+        switch($state.step) {
+            1 {
+                if(-not $state.controls.SourceConsent.IsChecked){Stop-AmbientInstall 'INSTALL_SOURCE_APPROVAL_REQUIRED'}
+                if(-not [IO.File]::Exists($state.controls.ZipPath.Text)){Stop-AmbientInstall 'INSTALL_PACKAGE_MISSING'}
+                $mode=if($state.controls.ChromeMode.IsChecked){'ChromeOnly'}else{'DesktopChrome'}
+                $old='';$approved=$false
+                if($state.controls.UpdateMode.IsChecked){
+                    $old=$state.controls.OldPath.Text;$approved=[bool]$state.controls.MigrationConsent.IsChecked
+                    if(-not $old -or -not $approved){Stop-AmbientInstall 'INSTALL_MIGRATION_APPROVAL_REQUIRED'}
+                }
+                $state.busy=$true;$state.controls.Next.IsEnabled=$false;$state.controls.Page1.IsEnabled=$false
+                $state.controls.UserStatus.Text='해시 · 지원 환경 · 개인 폴더 권한을 확인하고 설치 중입니다. 완료될 때까지 기다려 주세요.'
+                [void]$state.window.Dispatcher.Invoke([Action]{},[Windows.Threading.DispatcherPriority]::Render)
+                try{$state.result=Install-AmbientWorkspace $state.controls.ZipPath.Text $state.controls.ExpectedHash.Text.Trim() $state.controls.Destination.Text -SourceVerified -ExistingInstall $old -ApproveMigration:$approved -InstallMode $mode}
+                finally{$state.busy=$false;$state.controls.Next.IsEnabled=$true;$state.controls.Page1.IsEnabled=$true}
+                $state.controls.ExtensionPath.Text=$state.result.extension
+                $state.controls.InstalledPath.Text=$state.result.directory
+                $state.controls.LaunchPath.Text=if($mode -eq 'ChromeOnly'){$state.result.extension}else{Join-Path $state.result.desktop 'Start.bat'}
+                $state.controls.LaunchLabel.Text=if($mode -eq 'ChromeOnly'){'Chrome에 추가할 폴더 (Desktop 없음)'}else{'다음에 Desktop을 실행할 파일'}
+                $state.controls.CompletionText.Text=if($mode -eq 'ChromeOnly'){'Chrome 확장과 문서만 설치했습니다. Desktop·등록·페어링 없이 웹 효과를 시작하세요.'}else{'파일·해시·ACL 검사를 통과했습니다. Windows 연결의 실제 인증과 YouTube 캡처는 Chrome 팝업에서 직접 확인하세요.'}
+                $state.step=2;&$render
+                $state.controls.UserStatus.Text='파일 설치 완료. 이제 Chrome에서 확장을 직접 추가하세요.'
+            }
+            2 {
+                if(-not $state.controls.ExtensionConfirmed.IsChecked){Stop-AmbientInstall 'INSTALL_EXTENSION_NOT_CONFIRMED'}
+                $state.step=if($state.result.installationMode -eq 'ChromeOnly'){4}else{3};&$render
+                $state.controls.UserStatus.Text=if($state.step -eq 4){'파일 설치 완료 · Chrome 확장 추가는 사용자 확인입니다. 웹 탭에서 효과를 확인하세요.'}else{'Windows 연결은 선택 사항입니다. Desktop 실행·등록·실제 인증을 순서대로 진행하세요.'}
+            }
+            3 {$state.step=4;&$render;$state.controls.UserStatus.Text='파일 설치 완료 · 실제 Desktop 인증과 YouTube 연결 상태는 Chrome에서 확인하세요.'}
+            4 {$state.finished=$true;$state.window.Close()}
+        }
+    }}.GetNewClosure())
+    $controls.Back.Add_Click({if($state.step -gt 2){$state.step=if($state.result.installationMode -eq 'ChromeOnly'){2}else{$state.step-1};&$render}}.GetNewClosure())
+    $controls.Cancel.Add_Click({if(-not $state.busy){$state.window.Close()}}.GetNewClosure())
+    $window.Add_Closing({param($sender,$eventArgs)
+        if($state.busy){$eventArgs.Cancel=$true;$state.controls.UserStatus.Text='파일 검증과 설치가 끝난 뒤 닫을 수 있습니다. 기존 설치는 보존합니다.'}
+        elseif(-not $state.finished){$state.cancelled=$true}
+    }.GetNewClosure())
+    return $state
+}
+function Invoke-AmbientGraphicalInstallWizard {
+    $root=Split-Path (Split-Path $script:InstallerScriptPath)
+    Assert-InstallExtractedLayout $root
+    $state=New-AmbientInstallWizard $root
+    [void]$state.window.ShowDialog()
 }
 function Invoke-AmbientInstallWizard {
     Write-Host 'Ambient Workspace 안전한 설치 도우미 (rc.2 개발용)'
@@ -401,12 +644,13 @@ function Invoke-AmbientInstallWizard {
     if((Read-Host '현재 설치의 키를 읽어 실제 Host 인증을 검사하려면 인증 입력 (Enter: 나중에)') -ceq '인증') {
         try{$auth=Test-AmbientInstallerAuthentication $result.desktop -ApproveKeyRead;Write-Host ('Host 인증: '+$auth.hostAuthentication)}catch{Write-Host ('Host 인증 미확인: '+(Get-InstallErrorCode $_))}
     }
-    Write-Host 'Chrome 프로필의 연결은 별도입니다. 기존 확장을 삭제하지 말고 고정 ID와 새 확장 경로를 확인한 뒤 팝업의 코드 저장 · 연결 검사 결과를 확인하세요.'
+    Write-Host 'Windows 연결 마무리: 등록한 폴더의 Start.bat으로 Desktop을 실행하고 Chrome 팝업에서 Windows 연결을 누르세요. 저장된 인증을 먼저 확인하며 최초 연결일 때만 기존 코드를 입력합니다. 확장 삭제·설정·키 초기화는 필요하지 않습니다.'
 }
 if($MyInvocation.InvocationName -ne '.') {
     try {
-        if($Interactive -or -not $PackagePath){Invoke-AmbientInstallWizard}
-        else{Install-AmbientWorkspace $PackagePath $ExpectedSha256 $DestinationRoot -SourceVerified:$SourceVerified -ExistingInstall $ExistingInstall -ApproveMigration:$ApproveMigration}
+        if($Console){Invoke-AmbientInstallWizard}
+        elseif($Interactive -or -not $PackagePath){Invoke-AmbientGraphicalInstallWizard}
+        else{Install-AmbientWorkspace $PackagePath $ExpectedSha256 $DestinationRoot -SourceVerified:$SourceVerified -ExistingInstall $ExistingInstall -ApproveMigration:$ApproveMigration -InstallMode $InstallMode}
     } catch {
         $code=Get-InstallErrorCode $_
         Write-Host ('설치할 수 없음: '+$code+"`n"+(Get-InstallErrorHelp $code))

@@ -11,11 +11,11 @@ function Get-AmbientIntegrationPresentation($Client,$Control,[string]$InstanceId
     elseif ($null -ne $Client -and $Client.instanceId -ceq $InstanceId -and $Client.revision -eq $Control.revision -and $Now-$Client.utcMs -gt $freshness) { $status='error' }
     elseif ($null -ne $Client -and $Client.instanceId -ceq $InstanceId -and $Client.revision -eq $Control.revision -and $Client.globalPaused -eq $Control.config.control.globalPaused -and $Now-$Client.utcMs -ge 0 -and $Now-$Client.utcMs -le $freshness) {
         foreach ($key in @('web','youtube','capture')) { $parts[$key]=[string]$Client.parts.$key }
-        $pending=@($parts.Values | Where-Object { $_ -cnotin @('applied','off','notRequired') }).Count
-        $status=if ($pending) { 'partial' } else { 'complete' }
+        $pending=@($parts.Values | Where-Object { $_ -cnotin @('applied','off','notRequired','independent') }).Count
+        $status=if ($pending) { 'partial' } elseif ($parts.Values -ccontains 'independent') { 'independent' } else { 'complete' }
     }
     $phase=if ($Control.config.control.globalPaused) { '일시정지' } else { '재개' }
-    $title=switch ($status) { 'complete' { '전체 '+$phase+' 적용 완료' }; 'partial' { '일부 적용 · Chrome 확인 중' }; 'saveFailed' { '저장 실패 · 현재 상태 확인 필요' }; 'error' { 'Chrome 통신 끊김 · 전체 적용 여부 미확인' }; default { 'Desktop 적용 · Chrome 적용 확인 대기' } }
+    $title=switch ($status) { 'independent' { 'Windows '+$phase+' · Chrome 별도 제어' }; 'complete' { '전체 '+$phase+' 적용 완료' }; 'partial' { '일부 적용 · Chrome 확인 중' }; 'saveFailed' { '저장 실패 · 현재 상태 확인 필요' }; 'error' { 'Chrome 통신 끊김 · 전체 적용 여부 미확인' }; default { 'Desktop 적용 · Chrome 적용 확인 대기' } }
     return @{status=$status;title=$title;parts=$parts;phase=$phase}
 }
 function Get-AmbientControlPaths([string]$Directory) {
@@ -147,7 +147,7 @@ function Invoke-AmbientBridgeControl($Packet,[string]$Directory,[string]$Origin)
         $reply=@{ok=$true;status='snapshot';state=$state;lease=$authority.lease}
         switch -CaseSensitive ($Packet.type) {
             'control.hello' {
-                $reply.protocolVersion=1; $reply.capabilities=@('desktop-pause-control','profile-lease','integration-status')
+                $reply.protocolVersion=1; $reply.capabilities=@('desktop-pause-control','profile-lease','integration-status','independent-chrome-pause')
                 $reply.controlScope='desktop-effects'; $reply.profileLeaseSupported=$true
                 return $reply
             }
@@ -161,7 +161,7 @@ function Invoke-AmbientBridgeControl($Packet,[string]$Directory,[string]$Origin)
                 if (@($Packet.parts.PSObject.Properties).Count -ne 4) { return @{ok=$false;status='invalid'} }
                 $parts=@{}
                 foreach ($key in @('desktop','web','youtube','capture')) {
-                    if ($Packet.parts.PSObject.Properties.Name -cnotcontains $key -or $Packet.parts.$key -isnot [string] -or $Packet.parts.$key -cnotin @('applied','off','notRequired','waiting')) { return @{ok=$false;status='invalid'} }
+                    if ($Packet.parts.PSObject.Properties.Name -cnotcontains $key -or $Packet.parts.$key -isnot [string] -or $Packet.parts.$key -cnotin @('applied','off','notRequired','waiting','independent') -or ($key -ceq 'desktop' -and $Packet.parts.$key -ceq 'independent')) { return @{ok=$false;status='invalid'} }
                     $parts[$key]=$Packet.parts.$key
                 }
                 Write-AmbientControlJson $paths.client @{instanceId=$state.instanceId;revision=$state.revision;globalPaused=$state.globalPaused;parts=$parts;utcMs=(Get-AmbientControlNow);leaseId=$authority.lease.leaseId}

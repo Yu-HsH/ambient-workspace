@@ -12,6 +12,8 @@
         $known=@([IO.File]::ReadAllLines($originFile)|Where-Object{$_ -cmatch '^chrome-extension://[a-p]{32}/$'}|ForEach-Object{$_.Substring(19,32)})
         $controls.ExtensionIdText.Text=$known -join ','
     }
+    # Fixed public identity is validated by the existing registration policy as well.
+    if(-not $controls.ExtensionIdText.Text){$controls.ExtensionIdText.Text=(Get-AmbientNativeIdentity $Directory).extensionId}
     $state=[pscustomobject]@{window=$window;controls=$controls;directory=$Directory;hostName=$HostName;busy=$false;lastResult=$null;lastError=''}
     $invoke={param([string]$mode)
         if($state.busy){return}
@@ -38,7 +40,7 @@
                 'Inspect' {if($result.registered -and $result.binaryPresent){'등록 정보가 현재 폴더와 일치합니다. Chrome 팝업에서 실제 연결을 확인하세요.'}else{'현재 폴더에 필요한 등록 또는 host 파일이 없습니다. ID를 확인하고 등록하세요.'}}
                 'Remove' {'현재 사용자 등록을 해제했습니다. 이미 열린 연결은 Chrome을 종료하면 끝납니다. 설정·키·백업은 보존했습니다.'}
                 'Recover' {'이 작업이 변경한 등록·host 파일을 이전 상태로 복구했습니다. Chrome을 다시 열어 확인하세요.'}
-                default {'현재 사용자 등록을 저장했습니다. Chrome 팝업에서 페어링 코드와 실제 Desktop 연결을 확인하세요.'}
+                default {'Windows 연결 경로를 등록했습니다. 이 폴더의 Desktop을 실행한 뒤 Chrome 팝업의 Windows 연결을 누르세요. 기존 인증을 먼저 사용하며 최초 연결일 때만 기존 코드를 입력합니다. 연결이 남으면 확장을 새로고침하세요.'}
             }
         }catch {
             $message=[string]$_.Exception.Message;$code=if($message -match 'NATIVE_[A-Z_]+'){$matches[0]}elseif($_.Exception.Data.Contains('AmbientFileSecurity')){'NATIVE_FILE_SECURITY'}else{'NATIVE_REGISTRATION_FAILED'}

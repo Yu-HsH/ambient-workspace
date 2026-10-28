@@ -1,5 +1,20 @@
 # 변경 기록
 
+## rc.2 설치 경험 개편 (미커밋·미배포)
+
+- Windows ZIP 내부 `Install.bat` → 자체 포함 WPF 네 단계 안내. 원본 ZIP 후보·기본 설치 위치, 독립 게시 SHA-256·명시적 출처 승인, 기존 안전 설치 엔진 재사용.
+- Chrome-only는 확장·문서만 설치하며 Desktop 파일·Native 등록·키 읽기 생략. Chrome 수동 추가·폴더 위치 복사, 기존 Windows 등록 UI·팝업 인증 재사용.
+- 고정 공개 확장 ID 자동 채움, 사용자용 안내와 원인 코드 분리, 실제 설치·실행 위치 표시. 실행 정책을 낮추지 않으며 미서명 다운로드 차단 한계를 명시.
+- 신규/업데이트/취소/재시도 WPF 시험과 제품 allowlist 회귀 추가. README·화면별 설치·문제 해결·Release 다운로드 초안 정리, 기존 기술·보안·권리 설명 전체 보존.
+- 로컬 확장 표시와 Desktop 트레이만 rc.2 개발 검토 버전으로 표시. 공개 rc.1 태그·Release·ZIP은 변경하지 않음. [분석·신뢰 경계·실기 확인](docs/INSTALL_EXPERIENCE_RC2.md).
+
+## rc.2 후속 개발 중 — Windows 연결·Chrome 일시정지 (미커밋·미배포)
+
+- 팝업 Windows 연결에서 새 Native 포트·Desktop 실행·저장된 인증을 순서대로 확인. 최초 인증/거부일 때만 코드 입력 안내, 실패별 고급 진단 유지.
+- 이전 설치에 남은 Native 포트를 새로 여는 연결 경로와 읽기 전용 1회 재시도. 쓰기·미디어 재전송 금지, 등록은 기존 Windows 승인 UI에서만 수행.
+- Chrome 웹·YouTube·공유 캡처 처리의 영구 일시정지 상태를 Desktop 제어와 분리. 재연결·워커 재시작·탭 이동 후 명시적 정지 유지.
+- Windows 트레이의 별도 Chrome 제어 진단, Node 내장 자동 시험과 기존 보안·설치·WPF 회귀. [검토 범위·실사용 확인](docs/RC2_CONNECTION_PAUSE.md).
+
 ## rc.2 개발 중 — Orca Desktop 지원 (미배포)
 
 - PowerShell 5.1 안전한 설치 도우미: 출처 승인과 기대 ZIP 해시, 불변 스냅샷/내부 manifest/복사 후 파일 검증, 새 폴더의 원자적 생성과 보호 ACL, 기존 보안 검사 및 실행 전 검사 유지.

@@ -407,7 +407,7 @@ async function tick(id){
     }catch{measureStage('tickError'); /* Tab navigation/resize can interrupt a frame. */ }
   }else if(processingAllowed()&&(needEncode||needWebGlow||needDesktop)){measureStage('captureNotReady');}
   if(running&&sessionId===id){
-    const targetDelay=needEncode?Math.min(needWebVideo?frameGap:1000,needYoutube?youtubeGap:1000,needDesktopVideo?desktopVideoGap:1000,desktopPeriod):
+    const targetDelay=!processingAllowed()?1000:needEncode?Math.min(needWebVideo?frameGap:1000,needYoutube?youtubeGap:1000,needDesktopVideo?desktopVideoGap:1000,desktopPeriod):
       needWebGlow?Math.min(sampleGap,desktopPeriod):needDesktop?desktopPeriod:1000;
     timer=setTimeout(()=>{timer=null;tick(id);},Math.max(70,targetDelay-(performance.now()-now)));
   }

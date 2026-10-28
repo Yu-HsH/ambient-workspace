@@ -1,5 +1,6 @@
 importScripts('native-transport.js');
 importScripts('native-profiles.js');
+importScripts('windows-connection.js');
 // Ambient Workspace v0.6: one YouTube capture -> web receivers + local desktop RGB/JPEG bridge.
 const WORKSPACE_URLS = ['https://chatgpt.com/*','https://chat.openai.com/*','https://claude.ai/*','https://gemini.google.com/*','https://notion.so/*','https://www.notion.so/*','https://notion.com/*','https://www.notion.com/*','https://app.notion.com/*','https://app.notion.so/*'];
 const SITES_DEFAULT = {chatgpt:true,claude:true,gemini:true,notion:true};
@@ -21,7 +22,7 @@ async function publicSettingsView(){
   const revision=publicSettingsRevision,settings=await chrome.storage.local.get(SETTINGS_DEFAULTS);
   return {settings:Object.fromEntries(PUBLIC_SETTING_KEYS.map(key=>[key,settings[key]])),workerId:wbWorker,revision};
 }
-const popupRequests=new Set(['AW_GET_STATUS','AW_START_CAPTURE','AW_STOP_CAPTURE','AW_REFRESH_CROP','AW_DESKTOP_CONTROL_QUERY','AW_DESKTOP_CONTROL_SET','AW_DESKTOP_PAIR','AW_DESKTOP_TOGGLE','AW_DESKTOP_FORGET','AW_DESKTOP_PING','AW_NATIVE_STATUS','AW_NATIVE_PROFILE_LIST','AW_NATIVE_PROFILE_EXPORT','AW_NATIVE_PROFILE_IMPORT']);
+const popupRequests=new Set(['AW_GET_STATUS','AW_START_CAPTURE','AW_STOP_CAPTURE','AW_REFRESH_CROP','AW_WEB_PAUSE_QUERY','AW_WEB_PAUSE_SET','AW_WINDOWS_CONNECT','AW_DESKTOP_CONTROL_QUERY','AW_DESKTOP_CONTROL_SET','AW_DESKTOP_PAIR','AW_DESKTOP_TOGGLE','AW_DESKTOP_FORGET','AW_DESKTOP_PING','AW_NATIVE_STATUS','AW_NATIVE_PROFILE_LIST','AW_NATIVE_PROFILE_EXPORT','AW_NATIVE_PROFILE_IMPORT']);
 const offscreenRequests=new Set(['AW_CAPTURE_CONTROL_SYNC','AW_FRAME_BROADCAST','AW_GLOW_BROADCAST','AW_OFFSCREEN_ENDED','AW_NATIVE_REQUEST','AW_NATIVE_CANCEL']);
 const youtubePattern={test(value){try{const u=new URL(value);return u.protocol==='https:'&&['youtube.com','www.youtube.com'].includes(u.hostname)&&!u.username&&!u.password&&(!u.port||u.port==='443');}catch{return false;}}};
 const siteFromUrl=(url='')=>{try {const h=new URL(url).hostname; if(['chatgpt.com','chat.openai.com'].includes(h))return 'chatgpt';if(h==='claude.ai')return 'claude';if(h==='gemini.google.com')return 'gemini';if(['notion.so','www.notion.so','notion.com','www.notion.com','app.notion.com','app.notion.so'].includes(h))return 'notion';}catch{}return null;};
@@ -30,11 +31,11 @@ const DC_PROFILE='aw_desktop_profile',DC_SESSION='aw_desktop_control',DC_ALARM='
 const DC_ID=/^[a-f0-9]{32}$/;
 let dcEpoch=0,dcReady=null,dcTasks=Promise.resolve(),dcWrites=Promise.resolve(),dcAbort=null,dcQueryPending=null;
 let dcToken='',dcProfile='',dcLease=null,dcState=null,dcPending=null,dcNotice='',dcCheckedAt=0,dcFresh=false;
-let dcReportsSupported=false,dcReportError=false;
+let dcReportsSupported=false,dcIndependentSupported=false,dcReportError=false;
 const dcId=()=>crypto.randomUUID().replaceAll('-','');
-// Web pause is a confirmed control checkpoint, never an enabled/mode preference.
+// Chrome owns its durable pause; Desktop reads/reconnects cannot change it.
 const WB_LOCAL='aw_web_pause',wbWorker=dcId(),wbTargets=new Map(),ytTargets=new Map();
-let wbState=null,wbReady=false,wbSaved='',wbGeneration=0,wbInventoryKnown=false;
+let wbState=null,wbReady=false,wbGeneration=0,wbInventoryKnown=false,wbLoading=null,wbWrites=Promise.resolve();
 function wbSnapshot(value){
   return value&&DC_ID.test(value.instanceId)&&Number.isSafeInteger(value.revision)&&value.revision>=0&&typeof value.paused==='boolean'
     ?{instanceId:value.instanceId,revision:value.revision,paused:value.paused}:null;
@@ -42,14 +43,43 @@ function wbSnapshot(value){
 function wbAdopt(value){
   if(JSON.stringify(value)!==JSON.stringify(wbState)){wbState=value;wbGeneration++;}
 }
+async function wbInit(){
+  if(wbReady)return;
+  if(!wbLoading)wbLoading=(async()=>{
+    if(!await storageBoundary)throw Error('checkpointFailed');
+    const local=await chrome.storage.local.get(WB_LOCAL);
+    const saved=wbSnapshot(local[WB_LOCAL]);
+    if(local[WB_LOCAL]!=null&&!saved)throw Error('checkpointFailed');
+    // Preserve an rc.1 confirmed pause when upgrading, without rewriting settings.
+    wbAdopt(saved||{instanceId:dcId(),revision:0,paused:false});
+    wbReady=true;
+  })().finally(()=>{wbLoading=null;});
+  await wbLoading;
+}
+function wbSet(message){
+  const result=wbWrites.then(async()=>{
+    await wbInit();
+    if(typeof message.paused!=='boolean'||message.revision!==wbState.revision||message.instanceId!==wbState.instanceId)throw Error('pauseConflict');
+    if(message.paused!==wbState.paused){
+      const next={instanceId:wbState.instanceId,revision:wbState.revision+1,paused:message.paused};
+      // Resume only after persistence succeeds; failed saves retain the old gate.
+      await chrome.storage.local.set({[WB_LOCAL]:next});
+      wbAdopt(next);
+      if(next.paused)cancelNativeOffscreen();
+    }
+    await Promise.all([reconcileCapture(),wbReconcile()]);
+    return wbView();
+  });
+  wbWrites=result.catch(()=>{});return result;
+}
 function wbEnvelope(){return {workerId:wbWorker,generation:wbGeneration,ready:wbReady,paused:wbState?.paused===true,
-  instanceId:wbState?.instanceId||null,revision:wbState?.revision??null,fresh:dcFresh&&Date.now()-dcCheckedAt<5000,checkedAt:dcCheckedAt};}
+  instanceId:wbState?.instanceId||null,revision:wbState?.revision??null,fresh:wbReady,checkedAt:wbReady?Date.now():0};}
 // Actual offscreen processing ACK. Never merge it into Desktop or renderer ACKs.
 let captureAck=null,captureCheckedAt=0,captureCheckSerial=0;
 function captureView(){
   const localApplied=!!captureAck&&captureAck.workerId===wbWorker&&captureAck.generation===wbGeneration&&captureAck.sessionId===cachedSession?.sessionId&&Date.now()>=captureCheckedAt&&Date.now()-captureCheckedAt<5000;
   const fresh=dcFresh&&Date.now()-dcCheckedAt<5000;
-  return {status:localApplied&&fresh?'applied':'unconfirmed',localApplied,fresh,checkedAt:captureCheckedAt,gate:captureAck};
+  return {status:localApplied?'applied':'unconfirmed',localApplied,fresh,checkedAt:captureCheckedAt,gate:captureAck};
 }
 async function reconcileCapture(){
   const check=++captureCheckSerial;
@@ -85,10 +115,14 @@ function integrationView(){
     return enabled?'applied':'off';
   };
   const gate=captureView(),inFlight=gate.gate?.inFlight;
-  const draining=dcState?.globalPaused&&inFlight&&Object.values(inFlight).some(Boolean);
+  const draining=wbState?.paused&&inFlight&&Object.values(inFlight).some(Boolean);
   const parts={desktop:!fresh||!dcState?'waiting':!dcState.desktopOutput.enabled||!dcState.desktopOutput.rgbEnabled&&!dcState.desktopOutput.videoEnabled?'off':'applied',
     web:renderer(wbTargets),youtube:renderer(ytTargets),capture:cachedSession===null?'notRequired':gate.status==='applied'&&!draining?'applied':'waiting'};
-  const confirmed=Object.values(parts).every(value=>['applied','off','notRequired'].includes(value));
+  // Chrome's opposite pause phase must not be reported as applied to Windows.
+  if(dcState&&wbState?.paused!==dcState.globalPaused)for(const key of ['web','youtube','capture']){
+    if(parts[key]==='applied')parts[key]=dcIndependentSupported?'independent':'waiting';
+  }
+  const confirmed=Object.values(parts).every(value=>['applied','off','notRequired','independent'].includes(value));
   const status=dcState?.persisted===false||dcNotice==='saveFailed'?'saveFailed':!fresh||dcReportError?'error':dcPending?'waiting':confirmed?'complete':Object.values(parts).includes('applied')?'partial':'waiting';
   return {status,paused:dcState?.globalPaused===true,parts,reportConfirmed:dcReportsSupported&&!dcReportError};
 }
@@ -158,18 +192,16 @@ function cancelNativeOffscreen(){for(const controller of nativeOffscreenJobs.val
 const dcCheck=epoch=>{if(epoch!==dcEpoch)throw Error('connectionChanged');};
 const dcSave=epoch=>{
   const value={lease:dcLease,state:dcState,pending:dcPending,notice:dcNotice,checkedAt:dcCheckedAt};
-  const web=wbState,serialized=JSON.stringify(web);
   const result=dcWrites.then(async()=>{
     dcCheck(epoch);
     try{
-      if(web&&serialized!==wbSaved){await chrome.storage.local.set({[WB_LOCAL]:web});wbSaved=serialized;dcCheck(epoch);}
       await chrome.storage.session.set({[DC_SESSION]:value});
     }catch{throw Error('checkpointFailed');}
   });
   dcWrites=result.catch(()=>{});return result;
 };
 function dcReset(){
-  dcReportsSupported=false;dcReportError=false;
+  dcReportsSupported=false;dcIndependentSupported=false;dcReportError=false;
   dcEpoch++;dcAbort?.abort();dcReady=null;dcQueryPending=null;dcLease=null;dcState=null;dcPending=null;dcCheckedAt=0;dcFresh=false;dcNotice='';
   dcWrites=dcWrites.catch(()=>{}).then(()=>chrome.storage.session.remove(DC_SESSION)).catch(()=>{});
   // Pairing loss is not a resume. Keep the last web gate through reconnection.
@@ -184,17 +216,14 @@ async function dcInit(epoch){
   if(!dcReady)dcReady=(async()=>{
     if(!await storageBoundary)throw Error('checkpointFailed');
     await dcWrites;dcCheck(epoch);
-    const local=await chrome.storage.local.get([DESKTOP_TOKEN_KEY,DC_PROFILE,WB_LOCAL]);dcCheck(epoch);
-    const web=wbSnapshot(local[WB_LOCAL]);wbSaved=JSON.stringify(web);
-    if(!wbReady)wbAdopt(web);
+    await wbInit();dcCheck(epoch);
+    const local=await chrome.storage.local.get([DESKTOP_TOKEN_KEY,DC_PROFILE]);dcCheck(epoch);
     dcToken=local[DESKTOP_TOKEN_KEY]||'';dcProfile=local[DC_PROFILE];
     if(!DC_ID.test(dcProfile||'')){
       dcProfile=dcId();await chrome.storage.local.set({[DC_PROFILE]:dcProfile});dcCheck(epoch);
     }
     const saved=(await chrome.storage.session.get(DC_SESSION))[DC_SESSION];dcCheck(epoch);
     dcLease=saved?.lease||null;dcState=dcSnapshot(saved?.state);dcPending=saved?.pending||null;
-    if(!wbState&&dcState)wbAdopt({instanceId:dcState.instanceId,revision:dcState.revision,paused:dcState.globalPaused});
-    wbReady=true;
     dcNotice=dcPending?'unconfirmed':saved?.notice||'';dcCheckedAt=saved?.checkedAt||0;
     // Checkpoints are never a fresh confirmation after a worker restart.
     dcFresh=false;
@@ -226,7 +255,6 @@ function dcAccept(reply,epoch,allowInstance=false){
   if(!state)throw Error('invalidSnapshot');
   if(dcState&&state.instanceId!==dcState.instanceId&&!allowInstance)throw Error('instanceChanged');
   if(dcState?.instanceId===state.instanceId&&state.revision<dcState.revision)throw Error('oldRevision');
-  if(wbState?.instanceId===state.instanceId&&state.revision<wbState.revision)throw Error('oldRevision');
   if(dcPending){
     const ack=Array.isArray(reply.state.results)?reply.state.results.find(result=>result.requestId===dcPending.requestId):null;
     if(state.instanceId!==dcPending.instanceId){dcPending=null;dcNotice='instanceChanged';}
@@ -238,7 +266,6 @@ function dcAccept(reply,epoch,allowInstance=false){
   }
   if(dcState?.instanceId!==state.instanceId)dcLease=null;
   dcState=state;dcCheckedAt=Date.now();dcFresh=true;
-  wbAdopt({instanceId:state.instanceId,revision:state.revision,paused:state.globalPaused});
   // Only the lease owner receives this field; never expose lease IDs in public status.
   if(reply.lease&&DC_ID.test(reply.lease.leaseId)&&reply.lease.instanceId===state.instanceId&&Number.isSafeInteger(reply.lease.expiresAt))dcLease=reply.lease;
 }
@@ -248,7 +275,7 @@ async function dcRead(epoch){
   const reply=await dcFetch({type:hello?'control.hello':'control.query'},epoch);
   if(reply.ok){
     if(hello&&(reply.protocolVersion!==1||!reply.profileLeaseSupported||!reply.capabilities?.includes('desktop-pause-control')))throw Error('unsupported');
-    if(hello)dcReportsSupported=reply.capabilities.includes('integration-status');
+    if(hello){dcReportsSupported=reply.capabilities.includes('integration-status');dcIndependentSupported=reply.capabilities.includes('independent-chrome-pause');}
     if(!dcPending&&['leaseExpired','leaseConflict','pairingRequired','pairingRejected','unsupported','timeout','snapshotUnavailable','unavailable','ownerUnavailable','stale','ioError','checkpointFailed','oldRevision','invalidSnapshot','invalidAck'].includes(dcNotice))dcNotice='';
     dcAccept(reply,epoch,hello);await dcSave(epoch);return;
   }
@@ -281,6 +308,14 @@ const dcQuery=()=>{
   }
   return dcQueryPending;
 };
+let dcObservedAt=0;
+function dcObserve(){
+  // Keep Windows diagnostics/leases current without blocking Chrome-only controls.
+  const now=Date.now();
+  if(TOKEN_RE.test(dcToken)&&now-dcObservedAt>=(dcFresh?1000:5000)){
+    dcObservedAt=now;dcQuery().catch(()=>{});
+  }
+}
 function dcSet(message){
   return dcQueue(async epoch=>{
     await dcRead(epoch);
@@ -507,6 +542,7 @@ async function stopSession(resetMode=true,job){
   if(result.some(item=>item.status==='rejected'))throw Error('연결 정리를 확인하지 못했어요. 다시 확인해 주세요.');
 }
 async function startCapture(sourceTabId,scope,targetTabId,job){
+  await job.wait(wbInit());
   const source=await job.wait(chrome.tabs.get(sourceTabId));
   if(!youtubePattern.test(source.url||''))throw Error('유튜브 영상 탭에서 확장 프로그램을 열어 연결해 주세요.');
   const {desktopEnabled=false,[DESKTOP_TOKEN_KEY]:desktopToken='',youtubeAmbientEnabled=true}=await job.wait(chrome.storage.local.get(['desktopEnabled',DESKTOP_TOKEN_KEY,'youtubeAmbientEnabled']));
@@ -606,7 +642,7 @@ chrome.runtime.onMessage.addListener(function onRuntimeMessage(msg,sender,sendRe
   if(!storageBoundaryReady){
     storageBoundary.then(ok=>{if(ok)onRuntimeMessage(msg,sender,sendResponse);else sendResponse({ok:false,error:'확장 저장소 보호를 확인하지 못했어요. 확장을 다시 로드해 주세요.'});});return true;
   }
-  if(AW_PROFILES.isBusy()&&['AW_START_CAPTURE','AW_REFRESH_CROP','AW_DESKTOP_PAIR','AW_DESKTOP_TOGGLE','AW_DESKTOP_FORGET','AW_DESKTOP_CONTROL_SET'].includes(msg.type)){
+  if(AW_PROFILES.isBusy()&&['AW_START_CAPTURE','AW_REFRESH_CROP','AW_WINDOWS_CONNECT','AW_WEB_PAUSE_SET','AW_DESKTOP_PAIR','AW_DESKTOP_TOGGLE','AW_DESKTOP_FORGET','AW_DESKTOP_CONTROL_SET'].includes(msg.type)){
     sendResponse({ok:false,error:'설정 백업·복원이 진행 중이에요. 완료 후 다시 시도해 주세요.'});return;
   }
   if(['AW_NATIVE_PROFILE_LIST','AW_NATIVE_PROFILE_EXPORT','AW_NATIVE_PROFILE_IMPORT'].includes(msg.type)){
@@ -614,8 +650,8 @@ chrome.runtime.onMessage.addListener(function onRuntimeMessage(msg,sender,sendRe
     const operation=msg.type.split('_').at(-1).toLowerCase();
     AW_PROFILES.transfer(operation,{backupId:msg.backupId,confirmed:msg.confirmed===true},{
       captureActive:async()=>!!await sessionGet()||!!activeTask,
-      idle:async()=>{dcReset();cancelNativeOffscreen();await Promise.all([dcTasks,dcWrites,storageWrites,sessionTasks]);},
-      reset:async()=>{dcReset();await dcWrites;}
+      idle:async()=>{dcReset();cancelNativeOffscreen();await Promise.all([dcTasks,dcWrites,wbWrites,storageWrites,sessionTasks]);},
+      reset:async()=>{dcReset();await dcWrites;wbReady=false;await wbInit();await wbReconcile();}
     }).then(result=>sendResponse(result)).catch(error=>sendResponse({ok:false,error:[
       'profileBusy','profileStopCapture','profileConfirmationRequired','profileBackupFailed','profileInvalid','profileRecoveryRequired','profileImportFailedRestored'
     ].includes(error.message)?error.message:'profileNativeUnavailable'}));return true;
@@ -638,14 +674,22 @@ chrome.runtime.onMessage.addListener(function onRuntimeMessage(msg,sender,sendRe
     }
     wbRegister(sender,msg,registry);
     // Visible enabled content wakes MV3 without a permanent worker timer or offscreen.
-    // Different visible windows and the popup share one recent authenticated read.
-    const query=dcReady&&dcFresh&&Date.now()-dcCheckedAt<750?Promise.resolve(dcView()):dcQuery();
+    // Windows observation runs separately from Chrome's durable pause response.
+    dcObserve();
+    const query=wbInit();
     query.then(async()=>sendResponse({ok:true,web:wbEnvelope(),publicSettings:await publicSettingsView()})).catch(()=>sendResponse({ok:false}));return true;
   }
   if(msg.type==='AW_NATIVE_STATUS'){
     if(!isOwnPopup(sender)){sendResponse({ok:false});return;}
     AW_NATIVE.request({type:'native.status'}).then(native=>sendResponse({ok:true,extensionId:chrome.runtime.id,native}),
-      ()=>sendResponse({ok:false,extensionId:chrome.runtime.id,error:'nativeUnavailable'}));return true;
+      error=>sendResponse({ok:false,extensionId:chrome.runtime.id,error:error.message}));return true;
+  }
+  if(msg.type==='AW_WEB_PAUSE_QUERY'||msg.type==='AW_WEB_PAUSE_SET'){
+    const work=msg.type==='AW_WEB_PAUSE_SET'?wbSet(msg):wbInit().then(async()=>{
+      await Promise.all([reconcileCapture(),wbReconcile()]);return wbView();
+    });
+    work.then(web=>sendResponse({ok:true,web}),error=>sendResponse({ok:false,error:error.message==='pauseConflict'?
+      '다른 팝업에서 Chrome 상태가 바뀌었습니다. 다시 확인한 뒤 눌러 주세요.':'Chrome 일시정지 상태를 저장·확인하지 못했습니다. 기존 상태를 유지합니다.'}));return true;
   }
   if(msg.type==='AW_DESKTOP_CONTROL_QUERY'||msg.type==='AW_DESKTOP_CONTROL_SET'){
     if(!isOwnPopup(sender)){sendResponse({ok:false,error:'확장 팝업에서만 Desktop을 제어할 수 있어요.'});return;}
@@ -673,8 +717,7 @@ chrome.runtime.onMessage.addListener(function onRuntimeMessage(msg,sender,sendRe
     if(!fromOffscreen){sendResponse({ok:false});return;}
     const query=(async()=>{const session=await sessionGet();const source=session?await verifySource(session):null;
       // Source health must not wait behind a slow/offline Desktop native read.
-      // dcQueue still pushes any newly confirmed pause through reconcileCapture.
-      (dcReady&&dcFresh&&Date.now()-dcCheckedAt<750?reconcileCapture():dcQuery()).catch(()=>{});return source;})();
+      await wbInit();dcObserve();await reconcileCapture();return source;})();
     query.then(source=>sendResponse({ok:true,web:wbEnvelope(),source})).catch(()=>sendResponse({ok:false}));return true;
   }
   if((msg.type==='AW_FRAME_BROADCAST'||msg.type==='AW_GLOW_BROADCAST') && fromOffscreen){
@@ -755,7 +798,7 @@ chrome.runtime.onMessage.addListener(function onRuntimeMessage(msg,sender,sendRe
       sendResponse({ok:true,session,captureStats,desktop:{enabled:desktopEnabled,paired:TOKEN_RE.test(pairingCode),runtime:desktopRuntime}});
     }).catch(e=>sendResponse({ok:false,error:e.message}));return true;
   }
-  if(['AW_DESKTOP_PAIR','AW_DESKTOP_TOGGLE','AW_DESKTOP_FORGET','AW_DESKTOP_PING'].includes(msg.type)){
+  if(['AW_WINDOWS_CONNECT','AW_DESKTOP_PAIR','AW_DESKTOP_TOGGLE','AW_DESKTOP_FORGET','AW_DESKTOP_PING'].includes(msg.type)){
     queueSessionTask(async job=>{
       if(!isOwnPopup(sender))throw Error('확장 설정창에서만 연결할 수 있어요.');
       if(msg.type==='AW_DESKTOP_FORGET'){
@@ -765,25 +808,30 @@ chrome.runtime.onMessage.addListener(function onRuntimeMessage(msg,sender,sendRe
         return {ok:true};
       }
       let {desktopEnabled=false,[DESKTOP_TOKEN_KEY]:token=''}=await job.wait(chrome.storage.local.get(['desktopEnabled',DESKTOP_TOKEN_KEY]));
-      if(msg.type==='AW_DESKTOP_PAIR'){
+      const inputToken=msg.type==='AW_DESKTOP_PAIR'||msg.type==='AW_WINDOWS_CONNECT'&&typeof msg.token==='string'&&msg.token.trim();
+      if(inputToken){
         token=String(msg.token||'').trim();
         if(!TOKEN_RE.test(token))throw Error('Desktop 앱에서 복사한 64자리 페어링 코드를 입력해 주세요.');
       }
       if(msg.type==='AW_DESKTOP_TOGGLE')desktopEnabled=Boolean(msg.enabled);
-      const needsPing=msg.type==='AW_DESKTOP_PAIR'||msg.type==='AW_DESKTOP_PING'||desktopEnabled;
+      const needsPing=msg.type==='AW_WINDOWS_CONNECT'||msg.type==='AW_DESKTOP_PAIR'||msg.type==='AW_DESKTOP_PING'||desktopEnabled;
+      let connection=null;
       if(needsPing){
-        if(!TOKEN_RE.test(token))throw Error('데스크톱 페어링 코드를 먼저 저장해 주세요.');
-        await job.wait(ensureOffscreen());
-        const ping=await job.wait(sendOffscreen('AW_OFFSCREEN_DESKTOP_PING',{token}));
-        if(!ping?.ok)throw Error('PC 연결 실패: '+(ping?.error||'Desktop 앱 상태를 확인해 주세요.'));
+        // Retire the process bound to the previous registry path. A late Desktop
+        // command stays unconfirmed and is never replayed on the new port.
+        dcReset();cancelNativeOffscreen();AW_NATIVE.disconnect('connectionChanged');
+        await job.wait(dcTasks);await job.wait(dcWrites);
+        connection=await job.wait(AW_WINDOWS.check(token));
+        if(!connection.ok)return {ok:true,connection};
       }
-      if(msg.type==='AW_DESKTOP_PAIR')desktopEnabled=true;
+      if(inputToken)desktopEnabled=true;
       await job.wait(chrome.storage.local.set({[DESKTOP_TOKEN_KEY]:token,desktopEnabled}));
       const s=await job.wait(sessionGet());
       if(s){
         await sendOffscreen('AW_OFFSCREEN_DESKTOP_CONFIG',{sessionId:s.sessionId,enabled:desktopEnabled,token:desktopEnabled?token:''});
       }
-      return {ok:true,enabled:desktopEnabled,paired:TOKEN_RE.test(token)};
+      dcQuery().catch(()=>{});
+      return {ok:true,enabled:desktopEnabled,paired:TOKEN_RE.test(token),...(connection?{connection}:{})};
     }).then(sendResponse).catch(e=>sendResponse({ok:false,error:e.message,cancelled:e.name==='AbortError'}));return true;
   }
   if(msg.type==='AW_START_CAPTURE'){
@@ -814,7 +862,7 @@ chrome.tabs.onUpdated.addListener((id,info,tab)=>{
   if(info.status==='loading'&&youtubePattern.test(tab.url||info.url||''))ytTargets.set(id,{loading:true});
   if(info.status==='complete'&&(siteFromUrl(tab.url)||youtubePattern.test(tab.url||''))){
     const target=(youtubePattern.test(tab.url||'')?ytTargets:wbTargets).get(id);if(target)target.loading=false;
-    dcQuery().catch(()=>{});
+    wbInit().then(wbReconcile).catch(()=>{});
   }
   if(!info.url && info.status!=='complete')return;
   withSession(async(s,job)=>{

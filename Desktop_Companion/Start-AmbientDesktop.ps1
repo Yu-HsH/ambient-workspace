@@ -584,7 +584,7 @@ function Update-DesktopTrayStatus {
     $integrationMenuStatus.Text=$integration.title
     $integrationLabels=@{web='웹 배경';youtube='YouTube 조명';capture='캡처 처리'}
     foreach ($key in @('web','youtube','capture')) {
-        $description=switch ($integration.parts[$key]) { 'applied' { $integration.phase+' 적용 확인' }; 'off' { '사용자 설정 OFF · 유지됨' }; 'notRequired' { if ($key -eq 'capture') { '캡처 연결 없음' } else { '열린 대상 없음' } }; default { '확인 대기' } }
+        $description=switch ($integration.parts[$key]) { 'independent' { 'Chrome에서 별도 일시정지·재개' }; 'applied' { $integration.phase+' 적용 확인' }; 'off' { '사용자 설정 OFF · 유지됨' }; 'notRequired' { if ($key -eq 'capture') { '캡처 연결 없음' } else { '열린 대상 없음' } }; default { '확인 대기' } }
         $integrationRows[$key].Text=$integrationLabels[$key]+': '+$description
     }
     $display = if ($values.control.globalPaused) { 'Desktop 효과 일시정지' }
@@ -779,7 +779,7 @@ $videoPoll.Add_Tick($videoTick)
 
 $tray = New-Object System.Windows.Forms.NotifyIcon
 $tray.Icon = [System.Drawing.SystemIcons]::Application
-$tray.Text = 'Ambient Workspace Desktop v1.0.0-rc.1'
+$tray.Text = 'Ambient Workspace Desktop v1.0.0-rc.2-dev'
 $tray.Visible = $true
 $tray.add_DoubleClick({ Show-SettingsWindow }.GetNewClosure())
 $menu = New-Object System.Windows.Forms.ContextMenuStrip

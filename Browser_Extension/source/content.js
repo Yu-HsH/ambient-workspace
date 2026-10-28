@@ -51,7 +51,7 @@
     if(!web?.ready||!/^[a-f0-9]{32}$/.test(web.workerId||'')||!Number.isSafeInteger(web.generation)||web.generation<0||typeof web.paused!=='boolean'||typeof web.fresh!=='boolean')return false;
     if(retiredWorkers.has(web.workerId)||web.workerId===webWorker&&web.generation<webGeneration)return false;
     if(webWorker&&webWorker!==web.workerId)retiredWorkers.add(webWorker);
-    // A cached/failed connection can hold pause, but only a fresh Desktop query can resume it.
+    // A transport failure can hold pause; only a loaded Chrome checkpoint resumes it.
     const paused=web.paused||webPaused&&!web.fresh;
     if(webWorker!==web.workerId||webGeneration!==web.generation||webPaused!==paused)invalidateRender();
     webWorker=web.workerId;webGeneration=web.generation;webPaused=paused;webReady=true;

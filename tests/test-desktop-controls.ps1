@@ -118,6 +118,12 @@ try {
     $clientFixture.revision++
     Assert-True ((Get-AmbientIntegrationPresentation $clientFixture $localControl 'fixture' $fakeNow).status -eq 'waiting') 'An old report cannot acknowledge the current Desktop state'
     Write-Output 'PASS integration OFF scope, active expiry, partial apply and revision matching'
+    $clientFixture.revision=$localControl.revision;$clientFixture.parts.web='independent'
+    $separate=Get-AmbientIntegrationPresentation $clientFixture $localControl 'fixture' $fakeNow
+    Assert-True ($separate.status -eq 'independent' -and $separate.title -like '*Chrome 별도 제어*') 'A different Chrome pause phase must not claim whole completion or wait forever'
+    $clientFixture.utcMs=$fakeNow-6000
+    Assert-True ((Get-AmbientIntegrationPresentation $clientFixture $localControl 'fixture' $fakeNow).status -eq 'error') 'Separate Chrome state must still expire and cannot bypass freshness'
+    Write-Output 'PASS independent Chrome/Windows pause presentation and unchanged freshness boundary'
 
 
     $labels=@($menu.Items | Where-Object { $_ -is [Windows.Forms.ToolStripMenuItem] } | ForEach-Object { $_.Text })

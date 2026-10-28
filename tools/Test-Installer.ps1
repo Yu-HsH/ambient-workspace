@@ -1,5 +1,5 @@
 # Creates only a new owned test root; all settings/keys/Native names are synthetic.
-param([string]$FixtureRoot='')
+param([string]$FixtureRoot='',[switch]$RenderPreviews)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 if($PSVersionTable.PSEdition -ne 'Desktop'){throw 'Use Windows PowerShell 5.1 -STA.'}
@@ -10,8 +10,9 @@ if(-not $FixtureRoot){$FixtureRoot=Join-Path $env:USERPROFILE ('AmbientWorkspace
 $fixture=[IO.Path]::GetFullPath($FixtureRoot)
 New-InstallPrivateDirectory $fixture
 Write-Output ('NEW SYNTHETIC LAB: '+$fixture)
-foreach($name in @('test-installer.ps1','test-native-registration.ps1')) {
-    & powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File (Join-Path $root ('tests/'+$name)) -FixtureParent $fixture
+foreach($name in @('test-installer.ps1','test-install-wizard.ps1','test-native-registration.ps1')) {
+    $extra=@();if($name -eq 'test-install-wizard.ps1' -and $RenderPreviews){$extra=@('-RenderPreviews')}
+    & powershell.exe -NoProfile -NonInteractive -STA -File (Join-Path $root ('tests/'+$name)) -FixtureParent $fixture @extra
     if($LASTEXITCODE -ne 0){throw ('Failed '+$name+'; fixtures retained for review')}
 }
 & powershell.exe -NoProfile -NonInteractive -STA -ExecutionPolicy Bypass -File (Join-Path $root 'tools/Test-Orca.ps1')

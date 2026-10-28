@@ -9,7 +9,7 @@
     <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
     <StackPanel Grid.Row="0">
       <TextBlock Text="Chrome과 Desktop을 연결합니다" FontSize="23" FontWeight="SemiBold" Margin="0,0,0,10"/>
-      <TextBlock Text="현재 Windows 사용자에게만 연결 경로를 등록합니다. 관리자 실행이나 Chrome Web Store 등록은 필요하지 않습니다." Foreground="#B7C7E3" Margin="0,0,0,18"/>
+      <TextBlock Text="Windows 연결 1단계: 아래 등록 버튼을 누르면 현재 Windows 사용자의 연결 경로를 레지스트리에 저장합니다. 등록 후 이 폴더의 Desktop을 실행하고 Chrome 팝업에서 Windows 연결을 누르세요." Foreground="#B7C7E3" Margin="0,0,0,18"/>
     </StackPanel>
     <StackPanel Grid.Row="1" Margin="0,0,0,16">
       <TextBlock Text="현재 Desktop 폴더" Foreground="#9FB6D9" Margin="0,0,0,6"/>
@@ -18,7 +18,7 @@
     <StackPanel Grid.Row="2" Margin="0,0,0,17">
       <TextBlock Text="Chrome 확장 ID" FontWeight="SemiBold" Margin="0,0,0,6"/>
       <TextBox x:Name="ExtensionIdText" AutomationProperties.Name="Chrome 확장 ID" FontFamily="Consolas"/>
-      <TextBlock Text="확장 팝업의 ‘Windows 연결’에서 등록용 ID를 복사해 붙여넣으세요." Foreground="#AFC1DF" FontSize="12" Margin="0,7,0,0"/>
+      <TextBlock Text="제품의 고정 공개 ID를 자동으로 채웠습니다. Chrome 확장 목록의 Ambient Workspace ID와 일치하는지 확인하세요. 기존 ID가 다르면 이전 확장 설정 준비를 사용하세요." Foreground="#AFC1DF" FontSize="12" Margin="0,7,0,0"/>
     </StackPanel>
     <WrapPanel Grid.Row="3">
       <Button x:Name="InstallButton" Content="처음 등록"/>
@@ -29,7 +29,7 @@
       <Button x:Name="MigrationButton" Content="이전 확장 설정 준비"/>
     </WrapPanel>
     <Border Grid.Row="4" Background="#1C2636" Padding="14" Margin="0,8,0,12" CornerRadius="6" MinHeight="100">
-      <TextBlock x:Name="StatusText" Text="ID를 입력한 뒤 등록하세요. 폴더를 이동했다면 ‘이 폴더로 재등록’을 선택하세요." Foreground="#C5D6F2"/>
+      <TextBlock x:Name="StatusText" Text="공개 ID를 확인한 뒤 처음 등록을 누르세요. 업데이트·폴더 이동 후에는 이 폴더로 재등록을 선택하세요. 이 버튼을 누를 때만 등록을 변경합니다." Foreground="#C5D6F2"/>
     </Border>
     <DockPanel Grid.Row="5" LastChildFill="False">
       <TextBlock Text="설정·페어링 키·백업은 삭제하거나 초기화하지 않습니다." Foreground="#AFC1DF" FontSize="12" VerticalAlignment="Center" Width="420"/>

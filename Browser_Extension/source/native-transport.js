@@ -3,6 +3,12 @@
 (() => {
   const host='org.ambientworkspace.bridge',pending=new Map();
   let port=null;
+  function connectionError(message='') {
+    if(/specified native messaging host not found/i.test(message))return 'hostNotRegistered';
+    if(/access to the specified native messaging host is forbidden/i.test(message))return 'hostForbidden';
+    if(/failed to start native messaging host/i.test(message))return 'hostStartFailed';
+    return 'nativeUnavailable';
+  }
   function disconnect(reason='nativeDisconnected') {
     const previous=port;port=null;
     for(const job of pending.values()){job.cleanup();job.reject(Error(reason));}
@@ -20,10 +26,10 @@
       if(reply.transport==='ok'&&reply.result&&typeof reply.result==='object'&&!Array.isArray(reply.result))job.resolve(reply.result);
       else job.reject(Error(['pairingRequired','pairingRejected','bridgeUnavailable','timeout','invalid','busy'].includes(reply.transport)?reply.transport:'invalidNativeResponse'));
     });
-    connection.onDisconnect.addListener(()=>{void chrome.runtime.lastError;if(connection===port)disconnect('nativeUnavailable');});
+    connection.onDisconnect.addListener(()=>{const reason=connectionError(chrome.runtime.lastError?.message);if(connection===port)disconnect(reason);});
     return connection;
   }
-  function request(packet,{signal,timeoutMs=1800}={}) {
+  function exchange(packet,{signal,timeoutMs=1800}={}) {
     return new Promise((resolve,reject)=>{
       if(signal?.aborted){reject(Error('aborted'));return;}
       if(!packet||typeof packet!=='object'||Array.isArray(packet)){reject(Error('invalid'));return;}
@@ -38,6 +44,16 @@
       if(signal?.aborted){abort();return;}
       try{connection.postMessage(message);}catch{disconnect('nativeUnavailable');}
     });
+  }
+  async function request(packet,options={}) {
+    try{return await exchange(packet,options);}catch(error){
+      // A live port still points at the installation Chrome originally launched.
+      // Reopen only idempotent reads once. Never replay commands or media.
+      if(error.message!=='bridgeUnavailable'||options.signal?.aborted||
+        !['native.status','ping','control.hello','control.query'].includes(packet?.type))throw error;
+      disconnect('connectionChanged');
+      return exchange(packet,options);
+    }
   }
   globalThis.AW_NATIVE=Object.freeze({host,request,disconnect});
 })();
